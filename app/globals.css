@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+:root {
+  /* Refined modern pink indie beauty tokens */
+  --background: #FCEEF2;
+  --foreground: #22141B;
+
+  --surface: #FFF7F9;
+  --surface-subtle: #F7E2EB;
+
+  --muted: #F2DAE5;
+  --muted-foreground: #7E636E;
+
+  --border: #E8CCD8;
+  --border-subtle: #F3DEE8;
+
+  --accent: #942948;
+  --accent-hover: #7D1A36;
+  --accent-foreground: #FFF7F9;
+  --accent-subtle: #FBDCE7;
+
+  --ring: #942948;
+
+  /* Typography fallback definitions (overridden by next/font) */
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+}
+
+.dark {
+  /* Dark Theme Tokens: Deep Espresso Charcoal, Warm Ivory, Luminous Berry Rose */
+  --background: #171214;
+  --foreground: #F6EFEA;
+
+  --surface: #221B1E;
+  --surface-subtle: #2C2226;
+
+  --muted: #271E22;
+  --muted-foreground: #A69B9E;
+
+  --border: #3B2E33;
+  --border-subtle: #2F2428;
+
+  --accent: #E8829C;
+  --accent-hover: #F2A3B8;
+  --accent-foreground: #171214;
+  --accent-subtle: #311620;
+
+  --ring: #E8829C;
+}
+
+/* Centralized Brand Design Token Utilities (Standard CSS Linter Compatible) */
+.bg-background { background-color: var(--background); }
+.text-background { color: var(--background); }
+.bg-foreground { background-color: var(--foreground); }
+.text-foreground { color: var(--foreground); }
+
+.bg-surface { background-color: var(--surface); }
+.bg-surface-subtle { background-color: var(--surface-subtle); }
+
+.bg-muted { background-color: var(--muted); }
+.text-muted { color: var(--muted); }
+.text-muted-foreground { color: var(--muted-foreground); }
+
+.border-border { border-color: var(--border); }
+.border-border-subtle { border-color: var(--border-subtle); }
+
+.bg-accent { background-color: var(--accent); }
+.hover\:bg-accent-hover:hover { background-color: var(--accent-hover); }
+.text-accent { color: var(--accent); }
+.hover\:text-accent-hover:hover { color: var(--accent-hover); }
+.text-accent-foreground { color: var(--accent-foreground); }
+.bg-accent-subtle { background-color: var(--accent-subtle); }
+
+.font-display { font-family: var(--font-display); }
+.font-sans { font-family: var(--font-sans); }
+
+/* Base styles for luxury editorial feel */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Restrained selection styling */
+::selection {
+  background-color: var(--accent-subtle);
+  color: var(--foreground);
+}
+
+/* Editorial micro-typography utilities */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Editorial subtle focus style */
+.editorial-focus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
+}

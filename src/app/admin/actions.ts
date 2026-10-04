@@ -33,7 +33,7 @@ async function assertAdmin(): Promise<boolean> {
 
 export async function signOutAction() {
   const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
+  await supabase?.auth.signOut();
   redirect("/admin/login");
 }
 

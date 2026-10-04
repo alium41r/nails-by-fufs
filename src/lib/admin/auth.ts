@@ -16,6 +16,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/ssr";
  */
 export async function requireAdmin(next = "/admin") {
   const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    // No publishable key in this environment: it cannot be an admin session.
+    redirect("/admin/login?error=not_configured");
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -38,6 +43,8 @@ export async function getAdminUser() {
 
   try {
     const supabase = await createSupabaseServerClient();
+    if (!supabase) return null;
+
     const {
       data: { user },
     } = await supabase.auth.getUser();

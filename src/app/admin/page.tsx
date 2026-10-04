@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { requireAdmin } from "@/lib/admin/auth";
+
+export const dynamic = "force-dynamic";
 import { getPrisma } from "@/lib/prisma/db";
 
 /** Minimal catalogue dashboard: search products, see what needs attention. */

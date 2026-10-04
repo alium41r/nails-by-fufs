@@ -12,6 +12,8 @@ import {
 } from "@/app/admin/actions";
 import { ProductImageUploader } from "@/components/admin/ProductImageUploader";
 import { requireAdmin } from "@/lib/admin/auth";
+
+export const dynamic = "force-dynamic";
 import { getPrisma } from "@/lib/prisma/db";
 
 const fieldClass =

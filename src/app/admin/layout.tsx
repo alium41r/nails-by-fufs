@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/layout/Container";
 import { getAdminUser } from "@/lib/admin/auth";
 
+// Session-gated pages must be rendered per request, never prerendered.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Studio Admin — Nails by Fufs",
   robots: { index: false, follow: false },

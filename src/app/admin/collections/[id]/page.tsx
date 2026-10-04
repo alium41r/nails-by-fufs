@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { removeCollectionCoverAction, updateCollectionAction } from "@/app/admin/actions";
 import { CollectionCoverUploader } from "@/components/admin/CollectionCoverUploader";
 import { requireAdmin } from "@/lib/admin/auth";
+
+export const dynamic = "force-dynamic";
 import { getPrisma } from "@/lib/prisma/db";
 
 const fieldClass =

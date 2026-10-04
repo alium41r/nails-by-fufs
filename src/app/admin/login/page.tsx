@@ -6,6 +6,8 @@ import { AdminLoginForm } from "@/components/admin/AdminLoginForm";
 import { Container } from "@/components/layout/Container";
 import { isAdminConfigured } from "@/config/admin";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Studio Admin — Nails by Fufs",
   robots: { index: false, follow: false },

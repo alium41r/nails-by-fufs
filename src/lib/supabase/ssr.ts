@@ -16,11 +16,11 @@ export async function createSupabaseServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
+  // Unconfigured deployment (for example NEXT_PUBLIC_* vars not set in Vercel):
+  // return null rather than throwing, so a missing key cannot break the build or
+  // unrelated routes. Callers treat null as "nobody is signed in".
   if (!url || !publishableKey) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. " +
-        "Admin authentication needs the project URL and its publishable (anon) key.",
-    );
+    return null;
   }
 
   const cookieStore = await cookies();

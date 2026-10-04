@@ -47,6 +47,7 @@ export function ProductPreview({ products }: { products: CatalogueProduct[] }) {
                 <div className="relative w-full overflow-hidden">
                   <ImagePlaceholder
                     ratio="portrait"
+                    src={product.images[0]?.url ?? null}
                     label={product.imagePlaceholder.label}
                     sublabel={product.imagePlaceholder.sublabel}
                     interactive

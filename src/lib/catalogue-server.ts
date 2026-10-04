@@ -53,6 +53,7 @@ export const getStorefrontCatalogue = cache(async (): Promise<StorefrontCatalogu
       where: PUBLIC_COLLECTION_FILTER,
       orderBy: [{ display_order: { sort: "asc", nulls: "last" } }, { slug: "asc" }],
       select: {
+        cover_image_path: true,
         slug: true,
         title: true,
         subtitle: true,

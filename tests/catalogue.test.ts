@@ -154,6 +154,7 @@ describe("image views", () => {
 describe("toCollectionView", () => {
   it("maps a collection row and derives its placeholder copy", () => {
     const row: CollectionRow = {
+      cover_image_path: null,
       slug: "raw-earth",
       title: "Raw Earth Series",
       subtitle: "Warm Terracotta & Grounded Matte",

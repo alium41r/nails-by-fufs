@@ -273,3 +273,33 @@ Before declaring setup complete, verify:
 - [ ] Next.js development server runs: `npm run dev` (verify root layout renders)
 - [ ] `brain.md` Section 12 (*Current Project State*) is updated to reflect that project initialization is complete and active development has begun.
 - [ ] `brain.md` Project Metadata header is updated (`Current Phase: Prototyping` or `MVP Development`).
+
+## Admin access (studio owner only)
+
+The admin area is for the owner; there are no customer accounts and no public
+sign-up route exists in the app.
+
+1. **Create the account.** Supabase Dashboard → Authentication → Users →
+   *Add user*. Enter the owner's email and a password, and confirm the user.
+   (Nothing in the app can create an account — by design.)
+2. **Allowlist it.** Set `ADMIN_EMAILS` to that email in the server environment
+   (locally in `.env`, and in Vercel for the deployment). Optionally also set
+   `ADMIN_USER_IDS`. An authenticated user who is not on this list is treated as
+   an ordinary visitor and is redirected away from `/admin`.
+3. **Publishable key.** Ensure `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are set (the project's publishable/anon
+   key — public by design). The privileged `SUPABASE_SECRET_KEY` must never be
+   exposed with a `NEXT_PUBLIC_` name.
+4. Restart/redeploy, then sign in at `/admin/login`.
+
+Authorisation is enforced server-side in three independent places: `src/proxy.ts`
+gates the whole `/admin` segment, every admin page calls `requireAdmin()`, and
+every admin Server Action re-checks the allowlist before touching data or minting
+a Storage upload URL.
+
+Catalogue images use the public `product-images` bucket. Uploads are only
+possible through short-lived signed URLs minted by an admin-only action, object
+paths are generated server-side (`products/<productId>/<uuid>.<ext>` and
+`collections/<collectionId>/<uuid>.<ext>`), and no anon/authenticated Storage
+policy exists — so the bucket is readable by the storefront and writable only by
+the studio.

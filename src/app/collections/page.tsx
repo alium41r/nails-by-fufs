@@ -70,6 +70,7 @@ export default async function CollectionsPage() {
                 >
                   <ImagePlaceholder
                     ratio="wide"
+                    src={featuredCollection.coverImageUrl}
                     label={featuredCollection.imagePlaceholder.label}
                     sublabel={featuredCollection.imagePlaceholder.sublabel}
                     interactive

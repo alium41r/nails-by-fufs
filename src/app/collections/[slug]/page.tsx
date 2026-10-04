@@ -97,6 +97,7 @@ export default async function CollectionDetailPage({
             <div className="relative w-full overflow-hidden bg-surface-subtle border border-border">
               <ImagePlaceholder
                 ratio="wide"
+                src={collection.coverImageUrl}
                 label={collection.imagePlaceholder.label}
                 sublabel={collection.imagePlaceholder.sublabel}
                 className="w-full max-h-[480px] shadow-xs"

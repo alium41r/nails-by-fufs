@@ -20,6 +20,7 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
       <div className="relative w-full overflow-hidden bg-surface-subtle">
         <ImagePlaceholder
           ratio={activeImage.ratio || "portrait"}
+          src={activeImage.url ?? null}
           label={activeImage.label}
           sublabel={activeImage.sublabel}
           className="w-full shadow-xs transition-all duration-300"

@@ -58,6 +58,8 @@ export interface CatalogueImage {
   sublabel: string;
   alt: string;
   ratio: PlaceholderRatio;
+  /** Public Storage URL when real photography exists; null for placeholders. */
+  url: string | null;
 }
 
 export interface CatalogueCollection {
@@ -68,6 +70,8 @@ export interface CatalogueCollection {
   tag?: string;
   featured: boolean;
   imagePlaceholder: CataloguePlaceholder;
+  /** Public cover URL, or null when the collection has no cover image yet. */
+  coverImageUrl: string | null;
 }
 
 export interface CatalogueProduct {
@@ -93,6 +97,7 @@ export interface CatalogueProduct {
 /* -------------------------------------------------------------------------- */
 
 export interface CollectionRow {
+  cover_image_path: string | null;
   slug: string;
   title: string;
   subtitle: string;
@@ -140,6 +145,14 @@ function formatPrice(priceMinor: number | null, currency: string | null): string
   return `${currency} ${(priceMinor / 100).toFixed(2)}`;
 }
 
+/** Public URL for an object in the public catalogue images bucket. */
+export function publicImageUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!base) return null;
+  return `${base.replace(/\/$/, "")}/storage/v1/object/public/product-images/${path}`;
+}
+
 export function toCollectionView(row: CollectionRow): CatalogueCollection {
   return {
     slug: row.slug,
@@ -148,6 +161,7 @@ export function toCollectionView(row: CollectionRow): CatalogueCollection {
     description: row.description,
     ...(row.tag === null ? {} : { tag: row.tag }),
     featured: row.featured,
+    coverImageUrl: publicImageUrl(row.cover_image_path),
     imagePlaceholder: {
       label: `${row.title} Lookbook`,
       sublabel: COLLECTION_PLACEHOLDER_SUBLABEL,
@@ -181,6 +195,7 @@ export function toImageViews(product: ProductRow, rows: ProductImageRow[]): Cata
       sublabel: row.is_primary ? PRODUCT_PLACEHOLDER_SUBLABEL : `SHOT ${index + 1}`,
       alt: row.alt_text || `${product.name} press-on nail set`,
       ratio: index === 0 ? "portrait" : "square",
+      url: publicImageUrl(row.storage_path),
     }));
 }
 
@@ -191,6 +206,7 @@ function primaryPlaceholderImage(product: ProductRow): CatalogueImage {
     sublabel: PRODUCT_PLACEHOLDER_SUBLABEL,
     alt: `${product.name} press-on nail set`,
     ratio: "portrait",
+    url: null,
   };
 }
 

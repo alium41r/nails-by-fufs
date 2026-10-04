@@ -9,6 +9,8 @@ export interface ImagePlaceholderProps
   label?: string;
   sublabel?: string;
   interactive?: boolean;
+  /** Real image URL. When set, the photograph replaces the placeholder frame. */
+  src?: string | null;
 }
 
 export function ImagePlaceholder({
@@ -17,6 +19,7 @@ export function ImagePlaceholder({
   label = "Visual Archive",
   sublabel,
   interactive = false,
+  src = null,
   ...props
 }: ImagePlaceholderProps) {
   const ratioClasses: Record<AspectRatio, string> = {
@@ -45,6 +48,19 @@ export function ImagePlaceholder({
       )}
       {...props}
     >
+      {src ? (
+        // Real catalogue photography: fills the same frame the placeholder used.
+        // A plain <img> is deliberate: the storefront already ships
+        // placeholder-first media and the image host is a public Storage bucket.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={typeof props["aria-label"] === "string" ? props["aria-label"] : label}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <>
       {/* Corner crosshairs for architectural/editorial tactile feel */}
       <div className="absolute top-2.5 left-2.5 w-1.5 h-1.5 border-t border-l border-border pointer-events-none" />
       <div className="absolute top-2.5 right-2.5 w-1.5 h-1.5 border-t border-r border-border pointer-events-none" />
@@ -63,6 +79,8 @@ export function ImagePlaceholder({
           Awaiting Photography
         </span>
       </div>
+        </>
+      )}
     </div>
   );
 }

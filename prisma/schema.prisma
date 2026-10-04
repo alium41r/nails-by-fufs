@@ -110,9 +110,13 @@ model custom_order_requests {
   additional_notes         String?
   created_at               DateTime                   @default(now()) @db.Timestamptz(6)
   updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  status                   String                     @default("pending_review")
+  status_updated_at        DateTime?                  @db.Timestamptz(6)
+  admin_note               String?
   custom_order_attachments custom_order_attachments[]
 
   @@index([created_at(sort: Desc)])
+  @@index([status, created_at(sort: Desc)])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -161,20 +165,23 @@ model orders {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model appointment_requests {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  request_token  String    @unique @db.Uuid
-  name           String
-  phone          String
-  email          String?
-  service_type   String
-  preferred_date DateTime  @db.Date
-  preferred_time String
-  alternate_date DateTime? @db.Date
-  set_details    String?
-  notes          String?
-  status         String    @default("pending_review")
-  created_at     DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_token     String    @unique @db.Uuid
+  name              String
+  phone             String
+  email             String?
+  service_type      String
+  preferred_date    DateTime  @db.Date
+  preferred_time    String
+  alternate_date    DateTime? @db.Date
+  set_details       String?
+  notes             String?
+  status            String    @default("pending_review")
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  status_updated_at DateTime? @db.Timestamptz(6)
+  admin_note        String?
 
+  @@unique([preferred_date, preferred_time], map: "appointment_requests_confirmed_slot_key", where: raw("(status = 'confirmed'::text)"))
   @@index([status, created_at(sort: Desc)])
 }

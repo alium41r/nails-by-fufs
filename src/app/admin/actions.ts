@@ -4,6 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getAdminUser } from "@/lib/admin/auth";
+import {
+  CUSTOM_ORDER_STATUS_LABELS,
+  APPOINTMENT_STATUS_LABELS,
+  canTransitionAppointment,
+  canTransitionCustomOrder,
+  describeSlot,
+  findSlotConflicts,
+  isAppointmentStatus,
+  isCustomOrderStatus,
+  normalizeAdminNote,
+} from "@/lib/admin/lifecycle";
 import { getPrisma } from "@/lib/prisma/db";
 import {
   ALLOWED_IMAGE_TYPES,
@@ -540,4 +551,146 @@ export async function removeCollectionCoverAction(formData: FormData) {
   revalidatePath(`/admin/collections/${id}`);
   revalidatePath("/collections");
   redirect(`/admin/collections/${id}?saved=1`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Studio operations — custom orders                                          */
+/* -------------------------------------------------------------------------- */
+
+const isoDate = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : "");
+
+/**
+ * Admin-managed lifecycle only. Every original submitted field is left exactly
+ * as the customer sent it; the studio changes the review state and may keep an
+ * internal note. No customer notification is sent from here.
+ */
+export async function updateCustomOrderStatusAction(formData: FormData) {
+  if (!(await assertAdmin())) redirect("/admin/login?error=not_admin");
+
+  const id = text(formData, "id");
+  const next = text(formData, "status");
+  const note = normalizeAdminNote(formData.get("admin_note"));
+
+  const prisma = getPrisma();
+  const request = await prisma.custom_order_requests.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!request) {
+    redirect(`/admin/custom-orders?error=${encodeURIComponent("That request no longer exists.")}`);
+  }
+
+  if (!isCustomOrderStatus(next) || !canTransitionCustomOrder(request.status, next)) {
+    const from = isCustomOrderStatus(request.status)
+      ? CUSTOM_ORDER_STATUS_LABELS[request.status]
+      : request.status;
+    redirect(
+      `/admin/custom-orders/${id}?error=${encodeURIComponent(`A request that is "${from}" cannot be moved to that state.`)}`,
+    );
+  }
+
+  try {
+    await prisma.custom_order_requests.update({
+      where: { id },
+      data: { status: next, status_updated_at: new Date(), admin_note: note },
+    });
+  } catch {
+    redirect(`/admin/custom-orders/${id}?error=${encodeURIComponent("The status could not be saved.")}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/custom-orders");
+  revalidatePath(`/admin/custom-orders/${id}`);
+  redirect(`/admin/custom-orders/${id}?saved=1`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Studio operations — appointments                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Confirm or decline an appointment request.
+ *
+ * Confirming runs a conflict check first: if another CONFIRMED appointment
+ * already occupies the same requested date and time, the request is NOT
+ * confirmed and the admin is told to resolve the clash. The partial unique index
+ * `appointment_requests_confirmed_slot_key` enforces the same rule if two admins
+ * race, and that violation is reported as a conflict rather than a crash.
+ */
+export async function updateAppointmentStatusAction(formData: FormData) {
+  if (!(await assertAdmin())) redirect("/admin/login?error=not_admin");
+
+  const id = text(formData, "id");
+  const next = text(formData, "status");
+  const note = normalizeAdminNote(formData.get("admin_note"));
+
+  const prisma = getPrisma();
+  const request = await prisma.appointment_requests.findUnique({
+    where: { id },
+    select: { status: true, preferred_date: true, preferred_time: true },
+  });
+  if (!request) {
+    redirect(`/admin/appointments?error=${encodeURIComponent("That request no longer exists.")}`);
+  }
+
+  if (!isAppointmentStatus(next) || !canTransitionAppointment(request.status, next)) {
+    const from = isAppointmentStatus(request.status)
+      ? APPOINTMENT_STATUS_LABELS[request.status]
+      : request.status;
+    redirect(
+      `/admin/appointments/${id}?error=${encodeURIComponent(`A request that is "${from}" cannot be moved to that state.`)}`,
+    );
+  }
+
+  const date = isoDate(request.preferred_date);
+  const time = request.preferred_time;
+
+  if (next === "confirmed") {
+    // Narrow, targeted lookup: same requested date and time, already confirmed.
+    const sameSlot = await prisma.appointment_requests.findMany({
+      where: { status: "confirmed", preferred_date: request.preferred_date, preferred_time: time },
+      select: { id: true, preferred_date: true, preferred_time: true, status: true, name: true },
+    });
+
+    const conflicts = findSlotConflicts(
+      sameSlot.map((row) => ({
+        id: row.id,
+        preferred_date: isoDate(row.preferred_date),
+        preferred_time: row.preferred_time,
+        status: row.status,
+        name: row.name,
+      })),
+      { id, preferred_date: date, preferred_time: time },
+    );
+
+    if (conflicts.length > 0) {
+      redirect(
+        `/admin/appointments/${id}?error=${encodeURIComponent(
+          `Another confirmed appointment already holds ${describeSlot(date, time)} (${conflicts[0].name}). Resolve that one first — this request was NOT confirmed.`,
+        )}`,
+      );
+    }
+  }
+
+  try {
+    await prisma.appointment_requests.update({
+      where: { id },
+      data: { status: next, status_updated_at: new Date(), admin_note: note },
+    });
+  } catch (error) {
+    const message = String((error as { message?: string })?.message ?? "");
+    if (message.includes("appointment_requests_confirmed_slot_key") || message.includes("unique")) {
+      redirect(
+        `/admin/appointments/${id}?error=${encodeURIComponent(
+          `That slot was confirmed by someone else a moment ago. ${describeSlot(date, time)} now has two confirmed appointments — resolve the clash.`,
+        )}`,
+      );
+    }
+    redirect(`/admin/appointments/${id}?error=${encodeURIComponent("The status could not be saved.")}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/appointments");
+  revalidatePath(`/admin/appointments/${id}`);
+  redirect(`/admin/appointments/${id}?saved=1`);
 }

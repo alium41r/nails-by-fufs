@@ -34,12 +34,32 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin" className="font-display text-lg text-foreground tracking-wide">
                 Studio Admin
               </Link>
-              <nav className="hidden sm:flex items-center gap-4 text-xs">
+              <nav className="hidden md:flex items-center gap-4 text-xs">
                 <Link href="/admin" className="text-muted-foreground hover:text-accent transition-colors">
                   Catalogue
                 </Link>
+                <Link href="/admin/custom-orders" className="text-muted-foreground hover:text-accent transition-colors">
+                  Custom Orders
+                </Link>
+                <Link href="/admin/appointments" className="text-muted-foreground hover:text-accent transition-colors">
+                  Appointments
+                </Link>
+                <Link href="/admin/orders" className="text-muted-foreground hover:text-accent transition-colors">
+                  Orders
+                </Link>
                 <Link href="/shop" className="text-muted-foreground hover:text-accent transition-colors">
                   View Storefront
+                </Link>
+                <Link
+                  href="/shop?studio=1"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs border border-accent/40 bg-accent-subtle/50 text-accent font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+                  title="Open storefront in visual Studio Mode"
+                >
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-accent" />
+                  </span>
+                  Studio Mode
                 </Link>
               </nav>
             </div>

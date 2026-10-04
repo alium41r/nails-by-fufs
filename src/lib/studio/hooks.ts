@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo } from "react";
 import type {
   CatalogueCollection,
@@ -7,8 +9,12 @@ import {
   applyCollectionDraft,
   applyProductDraft,
   baseToStudioImages,
+  managementToCatalogueView,
+  managementToCollectionView,
+  normalizeManagedImages,
   studioToCatalogueImages,
 } from "./derive";
+import { useStudioManagement } from "./management";
 import { countPendingDrafts, studioStore, useStudioStore } from "./store";
 import type {
   MergedCollection,
@@ -51,70 +57,121 @@ export function useStudio() {
 }
 
 /**
- * Returns merged product reflecting any active studio draft when studio mode is active.
- * For normal visitors or outside studio mode, returns the base product untouched.
+ * The base a draft is merged onto.
+ *
+ * When the admin-only management projection is loaded it wins, because it is the
+ * only source that carries `is_active`, `featured`, display order and the stored
+ * price in minor units. Outside Studio Mode it is absent, and the visitor
+ * projection is used untouched.
  */
 export function useStudioProduct(product: CatalogueProduct): MergedProduct {
   const state = useStudioStore();
+  const management = useStudioManagement();
+
+  const managed = management.productById(product.id);
 
   return useMemo(() => {
+    const base = managed ? managementToCatalogueView(managed) : product;
+
     if (!state.isActive) {
+      // Not in Studio Mode: hand back the visitor projection exactly as-is.
       return {
-        ...product,
+        ...base,
         isActive: true,
         featured: false,
-        isUnpriced: product.price === "$XX",
+        isUnpriced: base.price === "$XX",
         isDraft: false,
-      };
+        displayOrder: null,
+      } as MergedProduct;
     }
 
     const draft = state.productDrafts[product.id];
     const images = state.productImages[product.id];
-    return applyProductDraft(product, draft, images);
-  }, [product, state.isActive, state.productDrafts, state.productImages]);
+    return applyProductDraft(base, draft, images);
+  }, [product, managed, state.isActive, state.productDrafts, state.productImages]);
 }
 
 /**
- * Returns merged collection reflecting any active studio draft when studio mode is active.
+ * Returns merged collection reflecting any active studio draft.
+ *
+ * `collection` is the visitor view model, which carries `featured` but no
+ * `is_active`; the management projection supplies the authoritative pair.
  */
 export function useStudioCollection(collection: CatalogueCollection): MergedCollection {
   const state = useStudioStore();
+  const management = useStudioManagement();
+
+  const managed = management.collectionBySlug(collection.slug);
 
   return useMemo(() => {
+    const base = managed ? managementToCollectionView(managed) : collection;
     if (!state.isActive) {
-      return {
-        ...collection,
-        isActive: true,
-        isDraft: false,
-      };
+      return { ...base, isActive: true, isDraft: false } as MergedCollection;
     }
 
     const draft = state.collectionDrafts[collection.slug];
-    return applyCollectionDraft(collection, draft);
-  }, [collection, state.isActive, state.collectionDrafts]);
+    return applyCollectionDraft(base, draft);
+  }, [collection, managed, state.isActive, state.collectionDrafts]);
 }
 
 /**
  * Returns product images, taking into account local drafts.
+ *
+ * The management gallery is the base whenever it is available, so the editor
+ * shows persisted metadata (real sort order, primary flag and alt text). Only a
+ * genuinely unsaved local draft — a blob preview just picked from disk —
+ * overrides it.
  */
 export function useStudioImages(product: CatalogueProduct) {
   const state = useStudioStore();
+  const management = useStudioManagement();
+
+  const managed = management.productById(product.id);
 
   return useMemo(() => {
+    const managedImages = managed ? normalizeManagedImages(managed.images) : null;
     const customImages = state.productImages[product.id];
-    if (!state.isActive || !customImages) {
-      const baseImages = baseToStudioImages(product);
+
+    if (state.isActive && customImages && managedImages) {
+      // Drafts win only while they hold something the server does not have yet.
+      const hasLocalOnly = customImages.some(
+        (image) => typeof image.url === "string" && image.url.startsWith("blob:"),
+      );
+      if (hasLocalOnly) {
+        return {
+          studioImages: customImages,
+          catalogueImages: studioToCatalogueImages(customImages, managed?.name ?? product.name),
+          isDraft: true,
+        };
+      }
       return {
-        studioImages: baseImages,
-        catalogueImages: product.images,
+        studioImages: managedImages,
+        catalogueImages: studioToCatalogueImages(managedImages, managed?.name ?? product.name),
         isDraft: false,
       };
     }
 
+    if (state.isActive && customImages) {
+      return {
+        studioImages: customImages,
+        catalogueImages: studioToCatalogueImages(customImages, product.name),
+        isDraft: true,
+      };
+    }
+
+    if (managedImages) {
+      return {
+        studioImages: managedImages,
+        catalogueImages: studioToCatalogueImages(managedImages, managed?.name ?? product.name),
+        isDraft: false,
+      };
+    }
+
+    const baseImages = baseToStudioImages(product);
     return {
-      studioImages: customImages,
-      catalogueImages: studioToCatalogueImages(customImages, product.name),
-      isDraft: true,
+      studioImages: baseImages,
+      catalogueImages: product.images,
+      isDraft: false,
     };
-  }, [product, state.isActive, state.productImages]);
+  }, [product, managed, state.isActive, state.productImages]);
 }

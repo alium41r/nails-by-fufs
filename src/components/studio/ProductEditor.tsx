@@ -2,9 +2,10 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { CatalogueProduct } from "@/lib/catalogue";
-import { parseCataloguePrice, parsePrice, PRICE_PLACEHOLDER } from "@/lib/studio/derive";
+import type { StudioProductManagement } from "@/lib/admin/studio-management";
+import { parsePrice, PRICE_PLACEHOLDER } from "@/lib/studio/derive";
 import { useStudio } from "@/lib/studio/hooks";
-import { studioAdapter } from "@/lib/studio/adapter";
+import { useStudioManagement } from "@/lib/studio/management";
 import type { ProductDraft } from "@/lib/studio/types";
 import {
   StudioField,
@@ -17,6 +18,14 @@ import { Check, RotateCcw, AlertTriangle, Images } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProductEditorProps {
+  /**
+   * The authoritative management record. Every field the editor shows comes from
+   * here, which is the only source carrying the real `is_active`, `featured`,
+   * display order and minor-unit price.
+   */
+  management: StudioProductManagement;
+  /** The same record projected into the customer-facing shape, so a draft can be
+   *  merged onto it exactly as the storefront renders it. */
   product: CatalogueProduct;
   focusField?: string;
   onClose: () => void;
@@ -33,18 +42,39 @@ const TAG_SUGGESTIONS = ["New", "Bestseller", "Studio Edit", "Limited Edition", 
  * and `featured`, which have no input of their own, so they are mapped to the
  * element that actually owns the control.
  */
+/**
+ * Reads the display-order field. Empty means "no explicit order", which the
+ * server stores as NULL; anything else must be a whole number.
+ */
+function parseDisplayOrderInput(value: number | string): number | null {
+  if (typeof value === "number") return Number.isInteger(value) ? value : null;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
 const FOCUS_FIELD_TARGETS: Record<string, string> = {
   length: "studio-length-group",
   active: "studio-field-active",
   featured: "studio-field-featured",
 };
 
-export function ProductEditor({ product, focusField, onClose }: ProductEditorProps) {
-  const { state, patchProduct, resetProduct, markSaved, openImageManager } = useStudio();
+export function ProductEditor({ management, product, focusField, onClose }: ProductEditorProps) {
+  const { state, patchProduct, openImageManager } = useStudio();
+  const { saveProduct, rebaseProduct } = useStudioManagement();
   const draft = state.productDrafts[product.id] || {};
 
-  /** Base catalogue price, parsed once, used to pre-fill and to revert. */
-  const basePrice = parseCataloguePrice(product.price);
+  /**
+   * The saved values, in minor units. Taken from the management record rather
+   * than parsed back out of a formatted price string, so pre-filling and
+   * reverting cannot lose precision or invent a currency.
+   */
+  const basePrice = {
+    priceMinor: management.priceMinor,
+    currency: management.currency,
+    amount: management.priceMinor === null ? "" : (management.priceMinor / 100).toFixed(2),
+  };
   const initialCurrency = draft.currency ?? basePrice.currency ?? "USD";
   const initialPriceStr =
     draft.priceMinor !== undefined
@@ -68,8 +98,11 @@ export function ProductEditor({ product, focusField, onClose }: ProductEditorPro
   const [includedStr, setIncludedStr] = useState(
     (draft.included ?? product.included ?? []).join("\n")
   );
-  const [isActive, setIsActive] = useState(draft.isActive ?? true);
-  const [featured, setFeatured] = useState(draft.featured ?? false);
+  const [isActive, setIsActive] = useState(draft.isActive ?? management.isActive);
+  const [featured, setFeatured] = useState(draft.featured ?? management.featured);
+  const [displayOrder, setDisplayOrder] = useState<number | string>(
+    draft.displayOrder ?? management.displayOrder ?? "",
+  );
 
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -99,19 +132,24 @@ export function ProductEditor({ product, focusField, onClose }: ProductEditorPro
     el.scrollIntoView({ block: "nearest" });
   }, [focusField]);
 
-  // Synchronize changes to store
+  /**
+   * Persists through the management provider.
+   *
+   * The provider owns what happens next: on success it adopts the server's
+   * projection and clears this draft, so the storefront switches from the local
+   * overlay to database values; on failure or a concurrent change it keeps the
+   * draft so nothing the owner typed is lost.
+   */
   const handleSaveDraft = async () => {
-    setIsSaving(true);
-    setErrorMessage(null);
-    const parsed = parsePrice(priceStr, currency);
     const trimmedName = name.trim();
+    setErrorMessage(null);
 
     if (!trimmedName) {
-      setIsSaving(false);
-      setErrorMessage("A product needs a name before the draft can be saved.");
+      setErrorMessage("A product needs a name before it can be saved.");
       return;
     }
 
+    const parsed = parsePrice(priceStr, currency);
     const updatedDraft: ProductDraft = {
       name: trimmedName,
       descriptor: descriptor.trim(),
@@ -124,48 +162,66 @@ export function ProductEditor({ product, focusField, onClose }: ProductEditorPro
       tag: tag.trim(),
       included: includedStr
         .split("\n")
-        .map((s) => s.trim())
+        .map((line) => line.trim())
         .filter(Boolean),
       isActive,
       featured,
+      displayOrder: parseDisplayOrderInput(displayOrder),
     };
 
+    setIsSaving(true);
+    // Optimistic local overlay first, so the storefront behind the drawer
+    // reflects the edit while the request is in flight.
+    patchProduct(product.id, updatedDraft);
+
     try {
-      patchProduct(product.id, updatedDraft);
-      // Adapter seam: local-only today, the B8A server actions replace it later.
-      const result = await studioAdapter.saveProduct(product.id, updatedDraft);
-      markSaved(product.id);
-      showBanner(
-        result.message ||
-          "Draft kept in this browser session. Nothing has been published yet."
-      );
-    } catch (error) {
-      setErrorMessage(
-        `Saving the product draft failed: ${
-          error instanceof Error ? error.message : "unexpected error"
-        }`
-      );
+      const result = await saveProduct(product.id, updatedDraft);
+
+      if (result.success) {
+        showBanner("Saved. The storefront now shows the published values.");
+        return;
+      }
+
+      setErrorMessage(result.message ?? "The product could not be saved.");
+      if (result.conflict) {
+        // Keep the draft, but re-read the fields so the owner can see what the
+        // record looks like now and retry deliberately.
+        syncFormFromServer();
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
+  /** Re-reads every field from the current authoritative record. */
+  const syncFormFromServer = () => {
+    setName(management.name);
+    setDescriptor(management.descriptor);
+    setDescription(management.description);
+    setCurrency(management.currency ?? "USD");
+    setPriceStr(management.priceMinor === null ? "" : (management.priceMinor / 100).toFixed(2));
+    setShape(management.shape);
+    setLength(management.defaultLength);
+    setFinish(management.finish);
+    setTag(management.tag ?? "");
+    setIncludedStr(management.included.join("\n"));
+    setIsActive(management.isActive);
+    setFeatured(management.featured);
+    setDisplayOrder(management.displayOrder ?? "");
+  };
+
+  /**
+   * Discards local edits.
+   *
+   * The draft is cleared first so the editor is no longer the source of the
+   * values, then the form is refilled from the management record — which is the
+   * latest state the server reported, including anything another tab changed.
+   */
   const handleRevert = () => {
-    resetProduct(product.id);
-    setName(product.name);
-    setDescriptor(product.descriptor);
-    setDescription(product.description);
-    setCurrency(basePrice.currency ?? "USD");
-    setPriceStr(basePrice.amount);
-    setShape(product.shape ?? "Almond");
-    setLength(product.length ?? "Medium");
-    setFinish(product.finish ?? "High Gloss");
-    setTag(product.tag ?? "");
-    setIncludedStr((product.included ?? []).join("\n"));
-    setIsActive(true);
-    setFeatured(false);
+    rebaseProduct(product.id);
+    syncFormFromServer();
     setErrorMessage(null);
-    showBanner("Reverted all local edits to catalogue original.", 3000);
+    showBanner("Reverted to the saved catalogue values.", 3000);
   };
 
   return (
@@ -374,6 +430,22 @@ export function ProductEditor({ product, focusField, onClose }: ProductEditorPro
             value={includedStr}
             onChange={(e) => setIncludedStr(e.target.value)}
             placeholder="10 Handcrafted press-on nails&#10;Full application prep kit&#10;Custom storage gift case"
+          />
+        </StudioField>
+
+        {/* Display order */}
+        <StudioField
+          label="Display Order"
+          htmlFor="studio-field-display-order"
+          hint="Lower shows first · leave empty for no explicit order"
+        >
+          <StudioInput
+            id="studio-field-display-order"
+            type="number"
+            step="1"
+            value={displayOrder}
+            onChange={(e) => setDisplayOrder(e.target.value)}
+            placeholder="e.g. 1"
           />
         </StudioField>
 

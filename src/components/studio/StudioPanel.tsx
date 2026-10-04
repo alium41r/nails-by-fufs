@@ -3,7 +3,12 @@
 import React, { useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useStudio } from "@/lib/studio/hooks";
+import { useStudioManagement } from "@/lib/studio/management";
 import { hasOpenStudioOverlay, trackStudioOverlay } from "@/lib/studio/overlay";
+import {
+  managementToCatalogueView,
+  managementToCollectionView,
+} from "@/lib/studio/derive";
 import { useStudioCatalogue } from "./StudioProvider";
 import { X } from "lucide-react";
 
@@ -30,7 +35,8 @@ const ImageManager = dynamic(() => import("./ImageManager").then((m) => m.ImageM
 
 export function StudioPanel() {
   const { isActive, isPreviewMode, activePanel, closePanel } = useStudio();
-  const { products, collections, currentProduct, currentCollection } = useStudioCatalogue();
+  const { products, collections } = useStudioCatalogue();
+  const management = useStudioManagement();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
@@ -97,26 +103,46 @@ export function StudioPanel() {
     return null;
   }
 
-  // Resolve target product or collection safely with discriminated union
-  let resolvedProduct;
-  if (activePanel.type === "product") {
-    const targetId = activePanel.id;
-    resolvedProduct =
-      (currentProduct && (currentProduct.id === targetId || currentProduct.slug === targetId)
-        ? currentProduct
-        : undefined) ||
-      products.find((p) => p.id === targetId || p.slug === targetId);
-  } else if (activePanel.type === "images") {
-    const targetId = activePanel.productId;
-    resolvedProduct =
-      (currentProduct && currentProduct.id === targetId ? currentProduct : undefined) ||
-      products.find((p) => p.id === targetId);
-  }
+  /**
+   * The editor renders from the management projection, never from a value
+   * captured when the panel opened.
+   *
+   * That is what makes a save land: the provider replaces the projection on
+   * success, this component re-renders, and the editor remounts (see the `key`
+   * below) with the persisted values. Rendering from a captured value would
+   * leave the panel showing the draft it just saved.
+   *
+   * The catalogue arrays are only a fallback for the moment before the
+   * management projection has loaded; the loading branch below means the editors
+   * never mount without it.
+   */
+  const managedProduct =
+    activePanel.type === "product"
+      ? // A product target is keyed by id, with slug accepted for convenience.
+        (management.productById(activePanel.id) ??
+        management.products.find((product) => product.slug === activePanel.id))
+      : activePanel.type === "images"
+        ? management.productById(activePanel.productId)
+        : undefined;
 
-  const resolvedCollection =
+  const managedCollection =
     activePanel.type === "collection"
-      ? (currentCollection && currentCollection.slug === activePanel.slug ? currentCollection : undefined) ||
-        collections.find((c) => c.slug === activePanel.slug)
+      ? (management.collectionBySlug(activePanel.slug) ??
+        management.collections.find((collection) => collection.id === activePanel.slug))
+      : undefined;
+
+  const resolvedProduct = managedProduct
+    ? managementToCatalogueView(managedProduct)
+    : activePanel.type === "product"
+      ? products.find((p) => p.id === activePanel.id || p.slug === activePanel.id)
+      : activePanel.type === "images"
+        ? products.find((p) => p.id === activePanel.productId)
+        : undefined;
+
+  const resolvedCollection = managedCollection
+    ? managementToCollectionView(managedCollection)
+    : activePanel.type === "collection"
+      ? collections.find((c) => c.slug === activePanel.slug)
       : undefined;
 
   const panelTitle =
@@ -158,43 +184,69 @@ export function StudioPanel() {
           </button>
         </div>
 
-        {/* Content based on panel type */}
-        {activePanel.type === "product" && (
-          resolvedProduct ? (
+        {/* Content based on panel type.
+
+            Each editor is keyed by the record it is editing *and* its version, so
+            a save (which advances `updatedAt`) remounts the form on the values the
+            server just returned. Without the version in the key, a successful save
+            would leave the owner looking at the form state they typed rather than
+            the record that was stored. */}
+        {activePanel.type === "product" &&
+          (management.isLoading && !managedProduct ? (
+            <EditorLoading />
+          ) : resolvedProduct && managedProduct ? (
             <ProductEditor
+              key={`${managedProduct.id}:${managedProduct.updatedAt}`}
+              management={managedProduct}
               product={resolvedProduct}
               focusField={activePanel.focusField}
               onClose={closePanel}
             />
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              Product not found in current catalogue session.
+              This product is not in the catalogue. Reload the page to refresh.
             </div>
-          )
-        )}
+          ))}
 
-        {activePanel.type === "collection" && (
-          resolvedCollection ? (
+        {activePanel.type === "collection" &&
+          (management.isLoading && !managedCollection ? (
+            <EditorLoading />
+          ) : resolvedCollection && managedCollection ? (
             <CollectionEditor
+              key={`${managedCollection.id}:${managedCollection.updatedAt}`}
+              management={managedCollection}
               collection={resolvedCollection}
               focusField={activePanel.focusField}
               onClose={closePanel}
             />
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              Collection not found in current catalogue session.
+              This collection is not in the catalogue. Reload the page to refresh.
             </div>
-          )
-        )}
+          ))}
 
-        {activePanel.type === "images" && (
-          resolvedProduct ? (
-            <ImageManager product={resolvedProduct} onClose={closePanel} />
+        {activePanel.type === "images" &&
+          (management.isLoading && !managedProduct ? (
+            <EditorLoading />
+          ) : resolvedProduct && managedProduct ? (
+            <ImageManager
+              key={`images:${managedProduct.id}`}
+              product={resolvedProduct}
+              onClose={closePanel}
+            />
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">
               Product photos not found.
             </div>
-          )
+          ))}
+
+        {management.loadError && (
+          <div
+            role="alert"
+            className="mx-4 mb-4 mt-2 p-3 bg-rose-500/10 border border-rose-400/40 text-rose-600 dark:text-rose-400 text-xs rounded-xs"
+          >
+            {management.loadError}
+          </div>
         )}
       </aside>
     </>

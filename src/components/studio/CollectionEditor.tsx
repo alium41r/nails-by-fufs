@@ -2,9 +2,10 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { CatalogueCollection } from "@/lib/catalogue";
+import type { StudioCollectionManagement } from "@/lib/admin/studio-management";
 import { useStudio } from "@/lib/studio/hooks";
-import { studioAdapter } from "@/lib/studio/adapter";
-import { isBlobUrl, revokeBlobUrl, validateImageFile } from "@/lib/studio/derive";
+import { useStudioManagement } from "@/lib/studio/management";
+import { revokeBlobUrl, validateImageFile } from "@/lib/studio/derive";
 import type { CollectionDraft } from "@/lib/studio/types";
 import {
   StudioField,
@@ -12,42 +13,77 @@ import {
   StudioSwitch,
   StudioTextArea,
 } from "./fields";
-import { Check, RotateCcw, Upload, Trash2, Image as ImageIcon, AlertCircle } from "lucide-react";
+import { Check, RotateCcw, Upload, Trash2, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
 
 interface CollectionEditorProps {
+  /**
+   * The authoritative management record, which is the only source that carries
+   * the real `is_active`, `featured` and display order for a collection.
+   */
+  management: StudioCollectionManagement;
+  /** The same record projected into the customer-facing shape. */
   collection: CatalogueCollection;
   focusField?: string;
   onClose: () => void;
 }
 
-export function CollectionEditor({ collection, focusField, onClose }: CollectionEditorProps) {
-  const { state, patchCollection, resetCollection, markSaved } = useStudio();
+/**
+ * Reads the display-order field. Empty means "no explicit order" (NULL).
+ */
+function parseDisplayOrderInput(value: number | string): number | null {
+  if (typeof value === "number") return Number.isInteger(value) ? value : null;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+export function CollectionEditor({
+  management,
+  collection,
+  focusField,
+  onClose,
+}: CollectionEditorProps) {
+  const { state, patchCollection } = useStudio();
+  const { saveCollection, rebaseCollection, uploadCover, removeCover } = useStudioManagement();
   const draft = state.collectionDrafts[collection.slug] || {};
 
-  const [title, setTitle] = useState(draft.title ?? collection.title);
-  const [subtitle, setSubtitle] = useState(draft.subtitle ?? collection.subtitle);
-  const [description, setDescription] = useState(draft.description ?? collection.description);
-  const [tag, setTag] = useState(draft.tag ?? collection.tag ?? "");
-  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(
-    draft.coverImageUrl !== undefined ? draft.coverImageUrl : collection.coverImageUrl
+  const [title, setTitle] = useState(draft.title ?? management.title);
+  const [subtitle, setSubtitle] = useState(draft.subtitle ?? management.subtitle);
+  const [description, setDescription] = useState(draft.description ?? management.description);
+  const [tag, setTag] = useState(draft.tag ?? management.tag ?? "");
+  const [isActive, setIsActive] = useState(draft.isActive ?? management.isActive);
+  const [featured, setFeatured] = useState(draft.featured ?? management.featured);
+  const [displayOrder, setDisplayOrder] = useState<number | string>(
+    draft.displayOrder ?? management.displayOrder ?? "",
   );
   /**
-   * A file picked from disk has no Storage URL yet. It is previewed from a local
-   * object URL that is deliberately NOT written into the draft: drafts are
-   * persisted to `sessionStorage`, and a blob URL is dead the moment the
-   * document that created it goes away.
+   * A file picked from disk is uploaded straight to Storage and the collection is
+   * repointed at the persisted URL. The local object URL below exists only for
+   * the moment between the pick and the upload finishing, and is released as soon
+   * as the real URL arrives.
    */
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
-  const [isActive, setIsActive] = useState(draft.isActive ?? true);
-  const [featured, setFeatured] = useState(draft.featured ?? collection.featured);
-  const [displayOrder, setDisplayOrder] = useState<number | string>(draft.displayOrder ?? 0);
+  const [isCoverBusy, setIsCoverBusy] = useState(false);
+
+  /** The persisted cover, falling back to the visitor projection before the
+   *  management projection has loaded. */
+  const persistedCoverUrl = draft.coverImageUrl ?? management.coverImageUrl ?? collection.coverImageUrl;
 
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    };
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** The object URL currently shown, tracked so it can always be released. */
   const coverPreviewRef = useRef<string | null>(null);
 
   /** Replaces the local preview, releasing the object URL it supersedes. */
@@ -74,7 +110,14 @@ export function CollectionEditor({ collection, focusField, onClose }: Collection
     }
   }, [focusField]);
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  /**
+   * Uploads a cover picked from disk.
+   *
+   * A local preview is shown while the file is in flight, then released the
+   * moment the real Storage URL comes back — so what the owner ends up looking at
+   * is the persisted object, not a blob that dies with the document.
+   */
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -85,69 +128,106 @@ export function CollectionEditor({ collection, focusField, onClose }: Collection
     }
 
     setErrorMessage(null);
+    setSavedBanner(null);
     setCoverPreview(URL.createObjectURL(file));
+    setIsCoverBusy(true);
+
+    try {
+      const result = await uploadCover(management.id, file);
+      if (!result.success) {
+        setErrorMessage(result.message ?? "The cover could not be uploaded.");
+        setCoverPreview(null);
+        return;
+      }
+      setCoverPreview(null);
+      showBanner("Cover uploaded and saved.");
+    } finally {
+      setIsCoverBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
-  const handleRemoveCover = () => {
-    setCoverPreview(null);
-    setCoverImageUrl(null);
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
+  const handleRemoveCover = async () => {
     setErrorMessage(null);
-    const orderNum = typeof displayOrder === "string" ? parseInt(displayOrder, 10) : displayOrder;
+    setIsCoverBusy(true);
+    try {
+      const result = await removeCover(management.id);
+      if (!result.success) {
+        setErrorMessage(result.message ?? "The cover could not be removed.");
+        return;
+      }
+      setCoverPreview(null);
+      showBanner("Cover removed.");
+    } finally {
+      setIsCoverBusy(false);
+    }
+  };
 
-    const trimmedCover = coverImageUrl?.trim() || null;
+  /**
+   * Persists the text fields through the management provider.
+   *
+   * The cover is not part of this payload: it is already saved by its own upload
+   * action, and re-sending it would let a stale editor resurrect a cover the
+   * owner just deleted.
+   */
+  const handleSave = async () => {
+    setErrorMessage(null);
+
+    if (!title.trim()) {
+      setErrorMessage("A collection needs a title before it can be saved.");
+      return;
+    }
 
     const updatedDraft: CollectionDraft = {
       title: title.trim(),
       subtitle: subtitle.trim(),
       description: description.trim(),
       tag: tag.trim(),
-      // A locally picked file is preview-only; a blob URL must never be persisted.
-      coverImageUrl: isBlobUrl(trimmedCover) ? null : trimmedCover,
       isActive,
       featured,
-      displayOrder: isNaN(orderNum) ? 0 : orderNum,
+      displayOrder: parseDisplayOrderInput(displayOrder),
     };
 
+    setIsSaving(true);
+    patchCollection(collection.slug, updatedDraft);
+
     try {
-      patchCollection(collection.slug, updatedDraft);
-      const result = await studioAdapter.saveCollection(collection.slug, updatedDraft);
-      markSaved(collection.slug);
-      setSavedBanner(
-        result.message ||
-          (coverPreviewUrl
-            ? "Collection draft saved. The cover file you picked is a local preview only until Storage upload is wired."
-            : "Collection draft saved to this browser session.")
-      );
-      setTimeout(() => setSavedBanner(null), 4000);
-    } catch (error) {
-      setErrorMessage(
-        `Saving the collection failed: ${
-          error instanceof Error ? error.message : "unexpected error"
-        }`
-      );
+      const result = await saveCollection(management.id, updatedDraft);
+      if (result.success) {
+        showBanner("Saved. The storefront now shows the published values.");
+        return;
+      }
+      setErrorMessage(result.message ?? "The collection could not be saved.");
+      if (result.conflict) syncFormFromServer();
     } finally {
       setIsSaving(false);
     }
   };
 
+  /** Re-reads every field from the current authoritative record. */
+  const syncFormFromServer = () => {
+    setTitle(management.title);
+    setSubtitle(management.subtitle);
+    setDescription(management.description);
+    setTag(management.tag ?? "");
+    setIsActive(management.isActive);
+    setFeatured(management.featured);
+    setDisplayOrder(management.displayOrder ?? "");
+  };
+
+  /** Discards local edits and returns to the latest saved values. */
   const handleRevert = () => {
-    resetCollection(collection.slug);
+    rebaseCollection(management.id);
     setCoverPreview(null);
-    setTitle(collection.title);
-    setSubtitle(collection.subtitle);
-    setDescription(collection.description);
-    setTag(collection.tag ?? "");
-    setCoverImageUrl(collection.coverImageUrl);
-    setIsActive(true);
-    setFeatured(collection.featured);
-    setDisplayOrder(0);
+    syncFormFromServer();
     setErrorMessage(null);
-    setSavedBanner("Reverted edits to original collection data.");
-    setTimeout(() => setSavedBanner(null), 3000);
+    showBanner("Reverted to the saved catalogue values.", 3000);
+  };
+
+  const showBanner = (message: string, ms = 4000) => {
+    setSavedBanner(message);
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    bannerTimerRef.current = setTimeout(() => setSavedBanner(null), ms);
   };
 
   return (
@@ -256,10 +336,10 @@ export function CollectionEditor({ collection, focusField, onClose }: Collection
                   </button>
                 </div>
               </div>
-            ) : coverImageUrl ? (
+            ) : persistedCoverUrl ? (
               <div className="relative aspect-video w-full overflow-hidden bg-surface-subtle border border-border rounded-xs">
                 <Image
-                  src={coverImageUrl}
+                  src={persistedCoverUrl}
                   alt={title}
                   fill
                   className="object-cover"
@@ -316,31 +396,17 @@ export function CollectionEditor({ collection, focusField, onClose }: Collection
               onChange={handleImageFileChange}
             />
 
-            {coverPreviewUrl && (
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-start gap-1.5 leading-relaxed">
-                <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
-                <span>
-                  Local preview only — this file uploads to Storage when the cover upload
-                  is wired. Nothing has been saved for it yet.
-                </span>
+            {isCoverBusy && (
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                <Upload className="w-3 h-3 shrink-0 animate-pulse" />
+                <span>Uploading cover…</span>
               </span>
             )}
 
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="studio-col-cover-url"
-                className="text-[10px] font-mono uppercase text-muted-foreground shrink-0"
-              >
-                Or URL:
-              </label>
-              <StudioInput
-                id="studio-col-cover-url"
-                value={coverImageUrl || ""}
-                onChange={(e) => setCoverImageUrl(e.target.value)}
-                placeholder="https://..."
-                className="h-8 text-xs"
-              />
-            </div>
+            <span className="text-[10px] text-muted-foreground leading-relaxed">
+              Covers upload straight to Storage and are saved immediately. The previous
+              object is removed once the new one is recorded.
+            </span>
           </div>
         </StudioField>
 

@@ -2,7 +2,12 @@ import type {
   CatalogueCollection,
   CatalogueImage,
   CatalogueProduct,
+  PlaceholderRatio,
 } from "@/lib/catalogue";
+import type {
+  StudioCollectionManagement,
+  StudioProductManagement,
+} from "@/lib/admin/studio-management";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/admin/paths";
 import type {
   CollectionDraft,
@@ -135,6 +140,42 @@ function placeholderImage(productName: string): CatalogueImage {
   };
 }
 
+/**
+ * Converts an authoritative management gallery into editor image drafts.
+ *
+ * Unlike {@link baseToStudioImages} this reads real persisted metadata — the
+ * stored `sort_order`, the real `is_primary` flag and the stored alt text — so
+ * opening the image manager shows what the database holds rather than a
+ * placeholder-derived guess. Studio's gallery invariant is that the primary
+ * image is also first, which the server writes together; the list is ordered the
+ * same way to keep the two views identical.
+ */
+export function normalizeManagedImages(
+  images: readonly {
+    id: string;
+    url: string | null;
+    alt: string;
+    isPrimary: boolean;
+    sortOrder: number;
+    ratio: PlaceholderRatio;
+  }[],
+): StudioImage[] {
+  return [...images]
+    .sort((a, b) => {
+      if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return a.id.localeCompare(b.id);
+    })
+    .map((image, index) => ({
+      id: image.id,
+      url: image.url,
+      alt: image.alt || `Product photograph ${index + 1}`,
+      isPrimary: image.isPrimary,
+      sortOrder: image.sortOrder,
+      ratio: image.ratio,
+    }));
+}
+
 /** Converts base product's catalogue images into StudioImage format. */
 export function baseToStudioImages(product: CatalogueProduct): StudioImage[] {
   if (!product.images || product.images.length === 0) {
@@ -177,13 +218,95 @@ export function studioToCatalogueImages(
     }));
 }
 
-/** Merges a base product with any active Studio Draft. */
+/**
+ * Projects an authoritative management record into the customer-facing shape.
+ *
+ * Studio Mode renders the *same* server component tree the public sees, so the
+ * editor needs a `CatalogueProduct` to merge a draft onto. Building that from the
+ * management record rather than from the visitor projection is what makes the
+ * editor show real `is_active` / `featured` values and the real stored gallery:
+ * the public view model deliberately has none of them, and defaulting them in
+ * the UI is exactly how an unpriced or unpublished product gets published by
+ * accident.
+ */
+export function managementToCatalogueView(
+  product: StudioProductManagement,
+): CatalogueProduct & { isActive: boolean; featured: boolean; displayOrder: number | null } {
+  const name = product.name;
+  const images: CatalogueImage[] =
+    product.images.length > 0
+      ? normalizeManagedImages(product.images).map((image, index) => ({
+          id: image.id,
+          label: index === 0 ? `${name} Set` : `${name} Detail ${index + 1}`,
+          sublabel: image.isPrimary ? "4:5 • PRODUCT SHOT" : `SHOT ${index + 1}`,
+          alt: image.alt,
+          ratio: image.ratio,
+          url: image.url,
+        }))
+      : [placeholderImage(name)];
+
+  return {
+    id: product.id,
+    slug: product.slug,
+    name,
+    descriptor: product.descriptor,
+    price: formatPrice(product.priceMinor, product.currency),
+    ...(product.tag === null ? {} : { tag: product.tag }),
+    collectionSlug: product.collectionSlug,
+    collectionName: product.collectionSlug,
+    shape: product.shape,
+    length: product.defaultLength,
+    finish: product.finish,
+    description: product.description,
+    included: product.included,
+    images,
+    imagePlaceholder: {
+      label: /\bset\b/i.test(name) ? name : `${name} Set`,
+      sublabel: "4:5 • PRODUCT SHOT",
+      alt: `${name} press-on nail set`,
+    },
+    isActive: product.isActive,
+    featured: product.featured,
+    displayOrder: product.displayOrder,
+  };
+}
+
+/** Same projection for a collection. */
+export function managementToCollectionView(
+  collection: StudioCollectionManagement,
+): CatalogueCollection & { isActive: boolean; displayOrder: number | null } {
+  return {
+    slug: collection.slug,
+    title: collection.title,
+    subtitle: collection.subtitle,
+    description: collection.description,
+    ...(collection.tag === null ? {} : { tag: collection.tag }),
+    featured: collection.featured,
+    coverImageUrl: collection.coverImageUrl,
+    imagePlaceholder: {
+      label: `${collection.title} Lookbook`,
+      sublabel: "COLLECTION ARCHIVE",
+      alt: `${collection.title} lookbook visual presentation`,
+    },
+    isActive: collection.isActive,
+    displayOrder: collection.displayOrder,
+  };
+}
+
+/**
+ * Merges a base product with any active Studio Draft.
+ *
+ * `base` should already be the management projection when one is available
+ * (see `useStudioProduct`), so untouched fields show persisted values.
+ */
 export function applyProductDraft(
   base: CatalogueProduct,
   draft?: ProductDraft,
   images?: StudioImage[]
 ): MergedProduct {
-  const isDraft = Boolean(draft || (images && images.length > 0));
+  const isDraft = Boolean(
+    draft || (images && images.length > 0) || "isActive" in base,
+  );
   const effectiveImages = images ? studioToCatalogueImages(images, draft?.name || base.name) : base.images;
 
   let formattedPrice = base.price;
@@ -199,6 +322,12 @@ export function applyProductDraft(
     }
   }
 
+  const management = base as Partial<{
+    isActive: boolean;
+    featured: boolean;
+    displayOrder: number | null;
+  }>;
+
   return {
     ...base,
     name: draft?.name ?? base.name,
@@ -212,8 +341,12 @@ export function applyProductDraft(
     included: draft?.included ?? base.included,
     images: effectiveImages,
     imagePlaceholder: draftPlaceholder(base, draft?.name),
-    isActive: draft?.isActive ?? true,
-    featured: draft?.featured ?? false,
+    // Authoritative values when the management projection supplied them; the
+    // defaults only apply to a visitor bundle, where nothing is editable.
+    isActive: draft?.isActive ?? management.isActive ?? true,
+    featured: draft?.featured ?? management.featured ?? false,
+    displayOrder:
+      draft?.displayOrder !== undefined ? draft.displayOrder : (management.displayOrder ?? null),
     isUnpriced,
     isDraft,
   };
@@ -226,6 +359,11 @@ export function applyCollectionDraft(
 ): MergedCollection {
   const isDraft = Boolean(draft);
 
+  const management = base as Partial<{
+    isActive: boolean;
+    displayOrder: number | null;
+  }>;
+
   return {
     ...base,
     title: draft?.title ?? base.title,
@@ -234,7 +372,9 @@ export function applyCollectionDraft(
     tag: draft?.tag !== undefined ? (draft.tag.trim() || undefined) : base.tag,
     coverImageUrl: draft?.coverImageUrl !== undefined ? draft.coverImageUrl : base.coverImageUrl,
     featured: draft?.featured !== undefined ? draft.featured : base.featured,
-    isActive: draft?.isActive ?? true,
+    isActive: draft?.isActive ?? management.isActive ?? true,
+    displayOrder:
+      draft?.displayOrder !== undefined ? draft.displayOrder : (management.displayOrder ?? null),
     isDraft,
   };
 }

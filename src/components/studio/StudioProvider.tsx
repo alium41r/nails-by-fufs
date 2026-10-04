@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useMemo } from "react";
 import type { CatalogueCollection, CatalogueProduct } from "@/lib/catalogue";
 import { initStudioClient, studioStore } from "@/lib/studio/store";
 import { useStudio } from "@/lib/studio/hooks";
+import { StudioManagementProvider } from "@/lib/studio/management";
 import { StudioToolbar } from "./StudioToolbar";
 import { StudioPanel } from "./StudioPanel";
 
@@ -87,9 +88,17 @@ export function StudioProvider({
 
   return (
     <StudioCatalogueContext.Provider value={contextValue}>
-      <StudioToolbar />
-      {children}
-      <StudioPanel />
+      {/*
+        Mounts the admin-only management projection. It fetches on mount, so the
+        request only ever happens for a signed-in admin inside Studio Mode, and
+        it is what the editors read authoritative is_active / featured / order and
+        concurrency values from.
+      */}
+      <StudioManagementProvider>
+        <StudioToolbar />
+        {children}
+        <StudioPanel />
+      </StudioManagementProvider>
     </StudioCatalogueContext.Provider>
   );
 }

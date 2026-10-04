@@ -3,16 +3,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogueProduct } from "@/lib/catalogue";
 import { useStudio, useStudioImages } from "@/lib/studio/hooks";
+import { useStudioManagement } from "@/lib/studio/management";
 import { studioStore } from "@/lib/studio/store";
-import { studioAdapter } from "@/lib/studio/adapter";
-import {
-  moveImage,
-  normalizeStudioImages,
-  removeStudioImage,
-  replaceStudioImage,
-  validateImageFile,
-  withImageAlt,
-} from "@/lib/studio/derive";
+import { moveImage, validateImageFile } from "@/lib/studio/derive";
+import type { StudioImage, StudioSaveResult } from "@/lib/studio/types";
 import { StudioInput } from "./fields";
 import {
   Star,
@@ -36,6 +30,14 @@ interface ImageManagerProps {
 export function ImageManager({ product, onClose }: ImageManagerProps) {
   const { studioImages } = useStudioImages(product);
   const { openProductEditor } = useStudio();
+  const {
+    uploadImage,
+    deleteImage,
+    reorderImages,
+    updateImageAlt,
+  } = useStudioManagement();
+  /** The image a file picker is currently replacing, if any. */
+  const replacingIdRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,40 +71,48 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
   };
 
   /**
-   * Every mutation reads the store's current image list instead of the value
-   * captured when this render was created. Two quick clicks in one tick used to
-   * both start from the same snapshot, so the second write silently discarded
-   * the first edit.
+   * Mutations no longer accumulate in the local store.
+   *
+   * Each one is a real server write: the provider sends it to the existing
+   * admin-authorised action, the server returns the whole persisted gallery, and
+   * the provider replaces the projection. The editor therefore renders database
+   * metadata — real ids, sort order, primary flag and alt text — and never has to
+   * reconcile a local list against the server's.
+   *
+   * The store is still used for one thing: the temporary blob preview created
+   * between picking a file and the upload completing. It is released as soon as
+   * the persisted URL arrives.
    */
   const currentImages = () => studioStore.getSnapshot().productImages[product.id] ?? studioImages;
 
-  const updateImages = (
-    updater: (images: typeof studioImages) => typeof studioImages
-  ) => {
-    studioStore.updateProductImages(product.id, updater);
+  /**
+   * Reports a failed write. A conflict is called out separately because it means
+   * the gallery changed elsewhere and retrying blindly would clobber it.
+   */
+  const reportFailure = (label: string, result: { message?: string; conflict?: boolean }) => {
+    setSuccessBanner(null);
+    setErrorMessage(
+      result.conflict
+        ? (result.message ?? `${label} failed: this product changed elsewhere. Reload and try again.`)
+        : (result.message ?? `${label} failed. Please try again.`),
+    );
   };
 
-  /**
-   * The adapter seam can reject once it talks to the server, so every mutation
-   * is guarded: a thrown error surfaces in the panel instead of leaving a
-   * silently dead button or a permanently disabled control.
-   */
-  const runAdapterCall = async (label: string, call: () => Promise<unknown>) => {
-    setBusy(true);
-    try {
-      await call();
-      return true;
-    } catch (error) {
-      setSuccessBanner(null);
-      setErrorMessage(
-        `${label} could not be completed: ${
-          error instanceof Error ? error.message : "unexpected error"
-        }`
-      );
-      return false;
-    } finally {
-      setBusy(false);
-    }
+  /** Shows a local preview for the file being uploaded, releasing the last one. */
+  const showLocalPreview = (image: StudioImage) => {
+    const preview = { ...image, url: URL.createObjectURL(image.file as File) };
+    studioStore.updateProductImages(product.id, (images) => {
+      // Replace the preview if this upload is replacing an existing image.
+      const withoutTarget = replacingIdRef.current
+        ? images.filter((existing) => existing.id !== replacingIdRef.current)
+        : images.filter((existing) => existing.id !== preview.id);
+      return [...withoutTarget, preview];
+    });
+  };
+
+  /** Replaces any local preview with the persisted gallery. */
+  const clearLocalPreviews = () => {
+    studioStore.resetProductImages(product.id);
   };
 
   // Upload new image
@@ -117,34 +127,33 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
     }
 
     setErrorMessage(null);
-    let result;
+    setBusy(true);
+    replacingIdRef.current = null;
+    showLocalPreview({
+      id: `local-${Date.now()}`,
+      url: null,
+      alt: file.name.replace(/\.[^/.]+$/, ""),
+      isPrimary: false,
+      sortOrder: 999,
+      ratio: "portrait",
+      file,
+    });
+
     try {
-      result = await studioAdapter.uploadImage(product.id, file);
-    } catch (error) {
-      setErrorMessage(
-        `Upload could not be completed: ${
-          error instanceof Error ? error.message : "unexpected error"
-        }`
-      );
-      return;
+      const result = await uploadImage(product.id, file);
+      if (!result.success) {
+        reportFailure("Uploading the photograph", result);
+        return;
+      }
+      clearLocalPreviews();
+      notifySuccess("Photograph uploaded and saved.");
+    } finally {
+      setBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-
-    if (!result.success || !result.image) {
-      setErrorMessage(result.message || "Upload failed.");
-      return;
-    }
-
-    const newImage = result.image;
-    updateImages((images) => [...images, newImage]);
-    setAltTexts((prev) => ({ ...prev, [newImage.id]: newImage.alt }));
-    notifySuccess(
-      result.persisted
-        ? "Photograph uploaded."
-        : "Photograph added to this browser session preview only."
-    );
   };
 
-  // Replace existing image
+  // Replace existing image: the server places the new row where the old one sat.
   const handleReplaceFile = async (files: FileList | null) => {
     const targetId = replacingId;
     if (!files || files.length === 0 || !targetId) return;
@@ -158,34 +167,46 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
     }
 
     setErrorMessage(null);
-    const ok = await runAdapterCall("Replacing the photograph", async () => {
-      const res = await studioAdapter.replaceImage(product.id, targetId, file);
-      if (!res.success || !res.url) {
-        throw new Error(res.message || "The replacement was rejected.");
-      }
-      // The store revokes the previous URL if it was a local blob preview.
-      updateImages((images) => replaceStudioImage(images, targetId, res.url!, file));
-    });
+    setBusy(true);
+    replacingIdRef.current = targetId;
 
-    setReplacingId(null);
-    if (ok) notifySuccess("Photograph replaced in this browser session preview only.");
+    try {
+      const result = await uploadImage(product.id, file, targetId);
+      if (!result.success) reportFailure("Replacing the photograph", result);
+      else {
+        clearLocalPreviews();
+        notifySuccess("Photograph replaced and saved.");
+      }
+    } finally {
+      replacingIdRef.current = null;
+      setReplacingId(null);
+      setBusy(false);
+      if (replaceInputRef.current) replaceInputRef.current.value = "";
+    }
   };
 
-  // Set primary: gallery order defines the cover, so this promotes to first.
+  /**
+   * Promotes a photograph to the cover.
+   *
+   * The cover is defined by gallery position (first image), and the server
+   * assigns `is_primary` while reordering. Sending the whole order therefore sets
+   * position and cover flag in one write, which is also what keeps the partial
+   * unique index on primary images satisfiable.
+   */
   const handleSetPrimary = async (imageId: string) => {
-    const ok = await runAdapterCall("Setting the cover photograph", async () => {
-      const res = await studioAdapter.setPrimaryImage(product.id, imageId);
-      if (!res.success) throw new Error(res.message || "The change was rejected.");
-      updateImages((images) => {
-        const current = images.find((image) => image.id === imageId);
-        if (!current || images[0]?.id === imageId) return images;
-        return normalizeStudioImages([
-          current,
-          ...images.filter((image) => image.id !== imageId),
-        ]);
-      });
-    });
-    if (ok) notifySuccess("Cover photograph updated.");
+    const images = currentImages();
+    if (images[0]?.id === imageId) return;
+
+    const reordered = [
+      ...images.filter((image) => image.id === imageId),
+      ...images.filter((image) => image.id !== imageId),
+    ];
+    await runWrite("Setting the cover photograph", () =>
+      reorderImages(
+        product.id,
+        reordered.map((image) => image.id),
+      ),
+    );
   };
 
   // Move up / down
@@ -194,24 +215,17 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
     const reordered = moveImage(before, imageId, direction);
     if (reordered === before) return;
 
-    await runAdapterCall("Reordering the gallery", async () => {
-      const res = await studioAdapter.reorderImages(
+    await runWrite("Reordering the gallery", () =>
+      reorderImages(
         product.id,
-        reordered.map((image) => image.id)
-      );
-      if (!res.success) throw new Error(res.message || "The new order was rejected.");
-      updateImages(() => reordered);
-    });
+        reordered.map((image) => image.id),
+      ),
+    );
   };
 
   // Delete
   const handleDelete = async (imageId: string) => {
-    const ok = await runAdapterCall("Removing the photograph", async () => {
-      const res = await studioAdapter.deleteImage(product.id, imageId);
-      if (!res.success) throw new Error(res.message || "The removal was rejected.");
-      updateImages((images) => removeStudioImage(images, imageId));
-    });
-    if (ok) notifySuccess("Photograph removed from this browser session preview only.");
+    await runWrite("Removing the photograph", () => deleteImage(product.id, imageId));
   };
 
   // Alt text change
@@ -219,12 +233,36 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
     const current = currentImages().find((image) => image.id === imageId);
     if (!current || current.alt === alt) return;
 
-    const ok = await runAdapterCall("Updating the alt description", async () => {
-      const res = await studioAdapter.updateImageAlt(product.id, imageId, alt);
-      if (!res.success) throw new Error(res.message || "The change was rejected.");
-      updateImages((images) => withImageAlt(images, imageId, alt));
-    });
-    if (ok) notifySuccess("Alt description updated.");
+    const ok = await runWrite("Updating the alt description", () =>
+      updateImageAlt(product.id, imageId, alt),
+    );
+    if (ok) setAltTexts((prev) => ({ ...prev, [imageId]: alt }));
+  };
+
+  /** Runs a write, reporting the outcome and clearing local previews on success. */
+  const runWrite = async (
+    label: string,
+    run: () => Promise<StudioSaveResult>,
+  ): Promise<boolean> => {
+    setBusy(true);
+    setErrorMessage(null);
+    try {
+      const result = await run();
+      if (!result.success) {
+        reportFailure(label, result);
+        return false;
+      }
+      clearLocalPreviews();
+      notifySuccess(`${label.replace(/^\w/, (c) => c.toUpperCase())} saved.`);
+      return true;
+    } catch (error) {
+      setErrorMessage(
+        `${label} failed: ${error instanceof Error ? error.message : "unexpected error"}`,
+      );
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
 
   const imageCountLabel = useMemo(

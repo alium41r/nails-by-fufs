@@ -202,10 +202,30 @@ export const studioStore = {
     notify();
   },
 
-  resetProductDraft(id: string) {
-    revokeDroppedImages(currentState.productImages[id], []);
+  /**
+   * Clears a product's field draft.
+   *
+   * `keepImages` is used after a successful save: the gallery draft has just been
+   * replaced with the persisted Storage metadata, so it must survive while the
+   * field draft is discarded. Without it, the shape of the call would release
+   * object URLs that are no longer previews and drop a gallery the server just
+   * confirmed.
+   */
+  resetProductDraft(id: string, options?: { keepImages?: boolean }) {
     const newDrafts = { ...currentState.productDrafts };
     delete newDrafts[id];
+
+    if (options?.keepImages) {
+      currentState = {
+        ...currentState,
+        productDrafts: newDrafts,
+      };
+      persistToSession();
+      notify();
+      return;
+    }
+
+    revokeDroppedImages(currentState.productImages[id], []);
     const newImages = { ...currentState.productImages };
     delete newImages[id];
     currentState = {
@@ -214,6 +234,18 @@ export const studioStore = {
       productImages: newImages,
     };
     persistToSession();
+    notify();
+  },
+
+  /** Clears a product's gallery draft, releasing any local preview URLs. */
+  resetProductImages(id: string) {
+    revokeDroppedImages(currentState.productImages[id], []);
+    const newImages = { ...currentState.productImages };
+    delete newImages[id];
+    currentState = {
+      ...currentState,
+      productImages: newImages,
+    };
     notify();
   },
 

@@ -5,6 +5,21 @@ import { redirect } from "next/navigation";
 
 import { getAdminUser } from "@/lib/admin/auth";
 import {
+  MAX_TAG_LENGTH,
+  describeCollectionWriteError,
+  describeProductWriteError,
+  errorMessage,
+  optionalText,
+  parseDisplayOrder,
+  parseIncluded,
+  parsePricePair,
+  text,
+  toCollectionCore,
+  toProductCore,
+  validateCollectionCore,
+  validateProductCore,
+} from "@/lib/admin/catalogue-validation";
+import {
   CUSTOM_ORDER_STATUS_LABELS,
   APPOINTMENT_STATUS_LABELS,
   canTransitionAppointment,
@@ -49,23 +64,15 @@ export async function signOutAction() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Validation (mirrors the database CHECK constraints, friendlier messages)     */
+/* Validation                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;
-const LENGTHS = ["Short", "Medium", "Long"];
-
-function text(form: FormData, field: string): string {
-  const value = form.get(field);
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function optionalText(form: FormData, field: string, max: number): string | null | string {
-  const value = text(form, field);
-  if (value.length === 0) return null;
-  return value.length > max ? `__too_long__:${max}` : value;
-}
+/**
+ * Field rules, slug/currency patterns and price parsing live in
+ * `@/lib/admin/catalogue-validation` so the admin forms and Studio Mode share
+ * exactly one implementation. Only the delivery of the outcome differs: these
+ * actions redirect with an `error`/`saved` parameter, Studio returns a result.
+ */
 
 /* -------------------------------------------------------------------------- */
 /* Products                                                                    */
@@ -75,63 +82,46 @@ export async function updateProductAction(formData: FormData) {
   if (!(await assertAdmin())) redirect("/admin/login?error=not_admin");
 
   const id = text(formData, "id");
-  const slug = text(formData, "slug");
-  const name = text(formData, "name");
-  const descriptor = text(formData, "descriptor");
-  const description = text(formData, "description");
-  const shape = text(formData, "shape");
-  const defaultLength = text(formData, "default_length");
-  const finish = text(formData, "finish");
-  const tag = optionalText(formData, "tag", 60);
-  const displayOrderRaw = text(formData, "display_order");
-  const includedRaw = text(formData, "included");
+  const raw = {
+    slug: text(formData, "slug"),
+    name: text(formData, "name"),
+    descriptor: text(formData, "descriptor"),
+    description: text(formData, "description"),
+    shape: text(formData, "shape"),
+    defaultLength: text(formData, "default_length"),
+    finish: text(formData, "finish"),
+    tag: optionalText(formData, "tag", MAX_TAG_LENGTH),
+    displayOrder: parseDisplayOrder(text(formData, "display_order")),
+    included: parseIncluded(text(formData, "included")),
+  };
 
-  const errors: string[] = [];
-  if (name.length === 0 || name.length > 200) errors.push("Name is required (max 200 characters).");
-  if (!SLUG_PATTERN.test(slug)) errors.push("Slug must be lowercase words separated by single hyphens.");
-  if (shape.length === 0) errors.push("Shape is required.");
-  if (!LENGTHS.includes(defaultLength)) errors.push("Default length must be Short, Medium or Long.");
-  if (typeof tag === "string" && tag.startsWith("__too_long__")) errors.push("Tag is too long.");
-  const displayOrder = displayOrderRaw === "" ? null : Number(displayOrderRaw);
-  if (displayOrder !== null && !Number.isInteger(displayOrder)) errors.push("Display order must be a whole number.");
-
-  const included = includedRaw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
+  const errors = validateProductCore(raw);
   if (errors.length > 0) {
     redirect(`/admin/products/${id}?error=${encodeURIComponent(errors.join(" "))}`);
   }
+
+  const core = toProductCore(raw);
 
   try {
     await getPrisma().products.update({
       where: { id },
       data: {
-        name,
-        slug,
-        descriptor,
-        description,
-        shape,
-        default_length: defaultLength,
-        finish,
-        tag: tag as string | null,
-        display_order: displayOrder,
-        included,
+        name: core.name,
+        slug: core.slug,
+        descriptor: core.descriptor,
+        description: core.description,
+        shape: core.shape,
+        default_length: core.defaultLength,
+        finish: core.finish,
+        tag: core.tag,
+        display_order: core.displayOrder,
+        included: core.included,
       },
     });
   } catch (error) {
-    const message = String((error as { message?: string })?.message ?? "");
-    const friendly = message.includes("products_slug_key")
-      ? "That slug is already used by another product."
-      : message.includes("products_slug_format")
-        ? "Slug must be lowercase words separated by single hyphens."
-        : message.includes("products_default_length_valid")
-          ? "Default length must be Short, Medium or Long."
-          : message.includes("included")
-            ? "Included items could not be saved."
-            : "The product could not be saved. Please check the values and try again.";
-    redirect(`/admin/products/${id}?error=${encodeURIComponent(friendly)}`);
+    redirect(
+      `/admin/products/${id}?error=${encodeURIComponent(describeProductWriteError(errorMessage(error)))}`,
+    );
   }
 
   revalidatePath("/admin");
@@ -150,28 +140,17 @@ export async function updateProductPriceAction(formData: FormData) {
   if (!(await assertAdmin())) redirect("/admin/login?error=not_admin");
 
   const id = text(formData, "id");
-  const priceRaw = text(formData, "price");
-  const currencyRaw = text(formData, "currency").toUpperCase();
+  const parsed = parsePricePair(text(formData, "price"), text(formData, "currency"));
+
+  if (!parsed.ok) {
+    redirect(`/admin/products/${id}?error=${encodeURIComponent(parsed.error)}`);
+  }
 
   try {
-    if (priceRaw === "" && currencyRaw === "") {
-      await getPrisma().products.update({
-        where: { id },
-        data: { price_minor: null, currency: null },
-      });
-    } else {
-      const priceMinor = Number(priceRaw);
-      if (!Number.isInteger(priceMinor) || priceMinor < 0) {
-        redirect(`/admin/products/${id}?error=${encodeURIComponent("Price must be a whole number of minor units (for example 4500 for 45.00).")}`);
-      }
-      if (!CURRENCY_PATTERN.test(currencyRaw)) {
-        redirect(`/admin/products/${id}?error=${encodeURIComponent("Currency must be a three-letter code such as USD.")}`);
-      }
-      await getPrisma().products.update({
-        where: { id },
-        data: { price_minor: priceMinor, currency: currencyRaw },
-      });
-    }
+    await getPrisma().products.update({
+      where: { id },
+      data: { price_minor: parsed.priceMinor, currency: parsed.currency },
+    });
   } catch {
     redirect(`/admin/products/${id}?error=${encodeURIComponent("The price could not be saved.")}`);
   }
@@ -189,10 +168,9 @@ export async function updateProductVisibilityAction(formData: FormData) {
   const id = text(formData, "id");
   const isActive = formData.get("is_active") === "on";
   const featured = formData.get("featured") === "on";
-  const displayOrderRaw = text(formData, "display_order");
-  const displayOrder = displayOrderRaw === "" ? null : Number(displayOrderRaw);
+  const displayOrder = parseDisplayOrder(text(formData, "display_order"));
 
-  if (displayOrder !== null && !Number.isInteger(displayOrder)) {
+  if (displayOrder === "invalid") {
     redirect(`/admin/products/${id}?error=${encodeURIComponent("Display order must be a whole number.")}`);
   }
 
@@ -412,47 +390,42 @@ export async function updateCollectionAction(formData: FormData) {
   if (!(await assertAdmin())) redirect("/admin/login?error=not_admin");
 
   const id = text(formData, "id");
-  const slug = text(formData, "slug");
-  const title = text(formData, "title");
-  const subtitle = text(formData, "subtitle");
-  const description = text(formData, "description");
-  const tag = optionalText(formData, "tag", 60);
-  const displayOrderRaw = text(formData, "display_order");
-  const displayOrder = displayOrderRaw === "" ? null : Number(displayOrderRaw);
+  const raw = {
+    slug: text(formData, "slug"),
+    title: text(formData, "title"),
+    subtitle: text(formData, "subtitle"),
+    description: text(formData, "description"),
+    tag: optionalText(formData, "tag", MAX_TAG_LENGTH),
+    displayOrder: parseDisplayOrder(text(formData, "display_order")),
+  };
 
-  const errors: string[] = [];
-  if (title.length === 0 || title.length > 200) errors.push("Title is required (max 200 characters).");
-  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
-    errors.push("Slug must be lowercase words separated by single hyphens.");
-  }
-  if (typeof tag === "string" && tag.startsWith("__too_long__")) errors.push("Tag is too long.");
-  if (displayOrder !== null && !Number.isInteger(displayOrder)) errors.push("Display order must be a whole number.");
+  const errors = validateCollectionCore(raw);
   if (errors.length > 0) {
     redirect(`/admin/collections/${id}?error=${encodeURIComponent(errors.join(" "))}`);
   }
+
+  const core = toCollectionCore(raw);
 
   try {
     await getPrisma().collections.update({
       where: { id },
       data: {
-        slug,
-        title,
-        subtitle,
-        description,
-        tag: tag as string | null,
+        slug: core.slug,
+        title: core.title,
+        subtitle: core.subtitle,
+        description: core.description,
+        tag: core.tag,
         is_active: formData.get("is_active") === "on",
         featured: formData.get("featured") === "on",
-        display_order: displayOrder,
+        display_order: core.displayOrder,
       },
     });
   } catch (error) {
-    const message = String((error as { message?: string })?.message ?? "");
-    const friendly = message.includes("collections_slug_key")
-      ? "That slug is already used by another collection."
-      : message.includes("collections_slug_format")
-        ? "Slug must be lowercase words separated by single hyphens."
-        : "The collection could not be saved. Please check the values and try again.";
-    redirect(`/admin/collections/${id}?error=${encodeURIComponent(friendly)}`);
+    redirect(
+      `/admin/collections/${id}?error=${encodeURIComponent(
+        describeCollectionWriteError(errorMessage(error)),
+      )}`,
+    );
   }
 
   revalidatePath("/admin");

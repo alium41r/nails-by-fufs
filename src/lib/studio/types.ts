@@ -13,6 +13,7 @@ export interface ProductDraft {
   included?: string[];
   isActive?: boolean;
   featured?: boolean;
+  displayOrder?: number | null;
 }
 
 export interface CollectionDraft {
@@ -55,29 +56,68 @@ export interface StudioState {
 
 export interface StudioSaveResult {
   success: boolean;
+  /** Always true once wired: the result describes a completed server round trip. */
   persisted: boolean;
   message?: string;
+  /**
+   * Set when the server refused the write because the record changed since the
+   * draft was loaded. The UI must tell the owner to reload rather than implying
+   * a transient failure, and the local draft is kept so nothing is lost.
+   */
+  conflict?: boolean;
+  /** True for "not signed in as an admin" — distinct from a data error. */
+  unauthorized?: boolean;
 }
 
 export interface StudioAdapter {
-  saveProduct(productId: string, draft: ProductDraft): Promise<StudioSaveResult>;
-  saveCollection(collectionSlug: string, draft: CollectionDraft): Promise<StudioSaveResult>;
-  uploadImage(productId: string, file: File): Promise<StudioSaveResult & { image?: StudioImage }>;
-  replaceImage(productId: string, imageId: string, file: File): Promise<StudioSaveResult & { url?: string }>;
+  saveProduct(
+    productId: string,
+    draft: ProductDraft,
+    expectedUpdatedAt: string,
+  ): Promise<StudioSaveResult>;
+  saveCollection(
+    collectionId: string,
+    draft: CollectionDraft,
+    expectedUpdatedAt: string,
+  ): Promise<StudioSaveResult>;
+  uploadImage(
+    productId: string,
+    file: File,
+    replacingImageId?: string,
+  ): Promise<StudioSaveResult & { image?: StudioImage }>;
+  replaceImage(
+    productId: string,
+    imageId: string,
+    file: File,
+  ): Promise<StudioSaveResult & { url?: string }>;
   deleteImage(productId: string, imageId: string): Promise<StudioSaveResult>;
   setPrimaryImage(productId: string, imageId: string): Promise<StudioSaveResult>;
   reorderImages(productId: string, imageIds: string[]): Promise<StudioSaveResult>;
   updateImageAlt(productId: string, imageId: string, alt: string): Promise<StudioSaveResult>;
+  uploadCover(
+    collectionId: string,
+    file: File,
+    expectedUpdatedAt: string,
+  ): Promise<StudioSaveResult & { url?: string }>;
+  removeCover(collectionId: string, expectedUpdatedAt: string): Promise<StudioSaveResult>;
 }
 
 export interface MergedProduct extends CatalogueProduct {
   isActive: boolean;
   featured: boolean;
+  /**
+   * Authoritative display order when the management projection supplied it,
+   * otherwise null. A visitor bundle never carries it, because the public view
+   * model has no display order.
+   */
+  displayOrder: number | null;
   isUnpriced: boolean;
   isDraft: boolean;
 }
 
 export interface MergedCollection extends CatalogueCollection {
   isActive: boolean;
+  /** As on products: present only when the management projection supplied it. */
+  displayOrder: number | null;
   isDraft: boolean;
 }

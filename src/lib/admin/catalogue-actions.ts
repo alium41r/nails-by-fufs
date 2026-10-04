@@ -18,6 +18,7 @@ import {
   MAX_TAG_LENGTH,
   describeProductWriteError,
   errorMessage,
+  logServerError,
   normalizeOptionalText,
   parseDisplayOrder,
   parsePricePair,
@@ -38,6 +39,7 @@ import {
   isVersionToken,
 } from "@/lib/admin/version-token";
 import { getPrisma } from "@/lib/prisma/db";
+import { guardRateLimit } from "@/lib/security/rate-limit-guard";
 import { getReferenceStorage } from "@/lib/supabase/admin";
 
 /**
@@ -71,6 +73,17 @@ import { getReferenceStorage } from "@/lib/supabase/admin";
  */
 
 const UNAUTHORIZED = { ok: false as const, kind: "unauthorized" as const, error: "Not authorised." };
+
+/**
+ * Maps a safe failure onto the action result shape.
+ *
+ * `logServerError` deliberately names its field `message` so the wording reads as
+ * a sentence rather than an error code; the result contract uses `error`, so the
+ * rename happens here exactly once.
+ */
+function asStudioError(failure: { message: string }): { error: string } {
+  return { error: failure.message };
+}
 
 async function assertAdmin(): Promise<boolean> {
   return (await getAdminUser()) !== null;
@@ -279,11 +292,7 @@ export async function saveStudioCollection(
         state: await loadStudioManagement(),
       };
     }
-    return {
-      ok: false,
-      kind: "error",
-      error: `The collection could not be saved: ${errorMessage(error) || "unknown error"}`,
-    };
+    return { ok: false, kind: "error", ...asStudioError(logServerError("saveStudioCollection", error)) };
   }
 
   revalidateCatalogue();
@@ -315,6 +324,10 @@ export async function prepareStudioImageUpload(input: {
   replacingImageId?: string;
 }): Promise<StudioUploadTarget> {
   if (!(await assertAdmin())) return { ok: false, error: "Not authorised." };
+
+  const limit = await guardRateLimit("adminUpload");
+  if (!limit.allowed) return { ok: false, error: limit.message };
+
   if (!isUuid(input.productId)) return { ok: false, error: "Unknown product." };
   if (!ALLOWED_IMAGE_TYPES.includes(input.contentType)) {
     return { ok: false, error: "Unsupported image type. Use PNG, JPG, WebP, HEIC or GIF." };
@@ -423,7 +436,7 @@ export async function finalizeStudioImageUpload(input: {
   } catch (error) {
     // Do not leave the uploaded object behind if the row cannot be written.
     await storage.from(IMAGE_BUCKET).remove([input.path]);
-    return { ok: false, kind: "error", error: `The photograph could not be recorded: ${errorMessage(error)}` };
+    return { ok: false, kind: "error", ...asStudioError(logServerError("finalizeStudioImageUpload", error)) };
   }
 
   if (replaced) {
@@ -508,7 +521,7 @@ export async function reorderStudioImages(input: {
       ),
     ]);
   } catch (error) {
-    return { ok: false, kind: "error", error: `The new order could not be saved: ${errorMessage(error)}` };
+    return { ok: false, kind: "error", ...asStudioError(logServerError("reorderStudioImages", error)) };
   }
 
   return { ok: true, kind: "saved", state: await loadStudioManagement(), data: {} };
@@ -542,7 +555,7 @@ export async function setStudioPrimaryImage(input: {
       prisma.product_images.update({ where: { id: input.imageId }, data: { is_primary: true } }),
     ]);
   } catch (error) {
-    return { ok: false, kind: "error", error: `The cover could not be updated: ${errorMessage(error)}` };
+    return { ok: false, kind: "error", ...asStudioError(logServerError("setStudioPrimaryImage", error)) };
   }
 
   return { ok: true, kind: "saved", state: await loadStudioManagement(), data: {} };
@@ -571,7 +584,7 @@ export async function updateStudioImageAlt(input: {
       data: { alt_text: input.altText.slice(0, MAX_ALT_TEXT_LENGTH) },
     });
   } catch (error) {
-    return { ok: false, kind: "error", error: `The description could not be saved: ${errorMessage(error)}` };
+    return { ok: false, kind: "error", ...asStudioError(logServerError("updateStudioImageAlt", error)) };
   }
 
   return { ok: true, kind: "saved", state: await loadStudioManagement(), data: {} };
@@ -618,7 +631,7 @@ export async function deleteStudioImage(input: {
       }
     }
   } catch (error) {
-    return { ok: false, kind: "error", error: `The photograph could not be removed: ${errorMessage(error)}` };
+    return { ok: false, kind: "error", ...asStudioError(logServerError("deleteStudioImage", error)) };
   }
 
   // Scoped by path rule, so a forged row could never direct this at another
@@ -641,6 +654,10 @@ export async function prepareStudioCoverUpload(input: {
   sizeBytes: number;
 }): Promise<StudioUploadTarget> {
   if (!(await assertAdmin())) return { ok: false, error: "Not authorised." };
+
+  const limit = await guardRateLimit("adminUpload");
+  if (!limit.allowed) return { ok: false, error: limit.message };
+
   if (!isUuid(input.collectionId)) return { ok: false, error: "Unknown collection." };
   if (!ALLOWED_IMAGE_TYPES.includes(input.contentType)) {
     return { ok: false, error: "Unsupported image type. Use PNG, JPG, WebP, HEIC or GIF." };
@@ -721,7 +738,7 @@ export async function finalizeStudioCoverUpload(input: {
         state: await loadStudioManagement(),
       };
     }
-    return { ok: false, kind: "error", error: `The cover could not be saved: ${errorMessage(error)}` };
+    return { ok: false, kind: "error", ...asStudioError(logServerError("finalizeStudioCoverUpload", error)) };
   }
 
   if (
@@ -769,7 +786,7 @@ export async function removeStudioCover(input: {
         state: await loadStudioManagement(),
       };
     }
-    return { ok: false, kind: "error", error: `The cover could not be removed: ${errorMessage(error)}` };
+    return { ok: false, kind: "error", ...asStudioError(logServerError("removeStudioCover", error)) };
   }
 
   if (

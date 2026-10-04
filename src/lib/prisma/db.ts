@@ -3,6 +3,11 @@ import "server-only";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "@/generated/prisma/client";
+import {
+  connectionStringWithoutSslParams,
+  databaseSslConfig,
+  reportDatabaseTlsMode,
+} from "@/lib/prisma/tls";
 
 /**
  * Privileged, server-only Prisma access to the Supabase catalogue.
@@ -34,6 +39,20 @@ import { PrismaClient } from "@/generated/prisma/client";
  *   Prisma CLI for introspection only.
  */
 
+/** Refuse to queue for a pooled connection for longer than this. */
+const CONNECT_TIMEOUT_MS = 10_000;
+
+/**
+ * How long an unused connection may sit in this instance's pool.
+ *
+ * Short on purpose: a serverless instance is frequently frozen between requests,
+ * and a connection held across a freeze is a Supavisor slot used for nothing.
+ */
+const IDLE_TIMEOUT_MS = 5_000;
+
+/** Abandon a single query rather than let a stuck one consume the invocation. */
+const STATEMENT_TIMEOUT_MS = 15_000;
+
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
 
@@ -46,14 +65,36 @@ function createPrismaClient() {
     );
   }
 
+  // Verified TLS: the Supabase root CA is pinned and the chain is actually
+  // validated, rather than `sslmode=require`'s "encrypt without verifying".
+  const ssl = databaseSslConfig(connectionString);
+  reportDatabaseTlsMode(ssl.rejectUnauthorized === true);
+
   // Serverless-sized pool. `pg` defaults to `max: 10` per instance, which across
   // many short-lived Vercel functions holds far more Supavisor connections open
   // than this app needs; Supabase's serverless guidance is to shrink Prisma's
   // connection limit, which under the pg driver adapter is the pool `max`.
   // 3 is deliberately below the default: it covers the widest parallel read in
   // the catalogue layer (two queries) plus headroom for a transaction.
+  //
+  // The timeouts matter as much as the ceiling. A connection that cannot be
+  // acquired must fail fast rather than hold a serverless invocation open until
+  // the platform kills it, and an idle connection should return to the pooler
+  // quickly instead of being kept for the driver's 10-second default — a
+  // serverless instance is frozen between requests, and a connection held across
+  // a freeze is a Supavisor slot used for nothing.
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString, max: 3 }),
+    adapter: new PrismaPg({
+      connectionString: connectionStringWithoutSslParams(connectionString),
+      max: 3,
+      connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+      idleTimeoutMillis: IDLE_TIMEOUT_MS,
+      // Per-connection, so a runaway query cannot hold a pooler slot or a
+      // serverless invocation indefinitely.
+      statement_timeout: STATEMENT_TIMEOUT_MS,
+      query_timeout: STATEMENT_TIMEOUT_MS,
+      ssl,
+    }),
   });
 }
 

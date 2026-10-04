@@ -13,6 +13,10 @@
 # testing
 /coverage
 
+# local scratch (audit/e2e harnesses, chrome profiles, logs)
+/.b9/
+/tmp-*
+
 # next.js
 /.next/
 /out/
@@ -25,7 +29,13 @@
 
 # misc
 .DS_Store
+# Private keys and certificates that may carry one. The pinned Supabase *root*
+# CA under certs/ is a public trust anchor and is committed on purpose, so its
+# extension is allowed through explicitly below.
 *.pem
+*.key
+*.p12
+!certs/*.crt
 
 # debug
 npm-debug.log*

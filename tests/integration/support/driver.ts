@@ -9,7 +9,7 @@
  * Everything else — getAdminUser(), the allowlist, validation, Prisma, Storage,
  * path scoping and the optimistic concurrency predicate — is the production code.
  */
-import { setCookieJar } from "./next-headers";
+import { setCookieJar } from "./request-headers";
 import { clearRevalidated, revalidatedPaths } from "./next-cache";
 
 import {

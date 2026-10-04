@@ -185,3 +185,16 @@ model appointment_requests {
   @@unique([preferred_date, preferred_time], map: "appointment_requests_confirmed_slot_key", where: raw("(status = 'confirmed'::text)"))
   @@index([status, created_at(sort: Desc)])
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rate_limit_counters {
+  key          String
+  window_start DateTime @db.Timestamptz(6)
+  hits         Int      @default(0)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([key, window_start])
+  @@index([window_start])
+}

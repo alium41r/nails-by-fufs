@@ -264,7 +264,43 @@ export function describeCollectionWriteError(message: string): string {
   return "The collection could not be saved. Please check the values and try again.";
 }
 
-/** Extracts a readable message from an unknown thrown value. */
+/**
+ * Extracts a readable message from an unknown thrown value.
+ *
+ * For classify-and-translate use only: pass the result to
+ * {@link describeProductWriteError} / {@link describeCollectionWriteError} or to
+ * {@link logServerError}. Never return it to a caller verbatim — a Prisma error
+ * string carries table and column names.
+ */
 export function errorMessage(error: unknown): string {
   return String((error as { message?: string })?.message ?? "");
+}
+
+/** A safe, actionable message plus the technical detail, kept server-side. */
+export interface SafeFailure {
+  /** Wording intended for the UI. Carries no schema, key or connection detail. */
+  message: string;
+}
+
+/**
+ * Records a technical failure server-side and returns wording that is safe to
+ * show a person.
+ *
+ * Write actions used to return `error.message` straight to the client. A Prisma
+ * failure there is not a friendly string: it names the model, the column and
+ * often the constraint ("Unique constraint failed on the fields: (`slug`)"), and
+ * a connection failure can quote the host. The person acting on the form gains
+ * nothing from that, and it hands an attacker a map of the schema.
+ *
+ * Logging stays verbose on purpose — Vercel captures stdout/stderr for the
+ * project, so the detail is still available to whoever needs to diagnose it.
+ */
+export function logServerError(context: string, error: unknown): SafeFailure {
+  console.error(`[catalogue] ${context}:`, error);
+
+  return {
+    message:
+      "That could not be saved because of a problem on our side. " +
+      "Nothing was changed — please try again, and tell us if it keeps happening.",
+  };
 }

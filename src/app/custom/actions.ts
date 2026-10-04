@@ -11,6 +11,7 @@ import {
   type AllowedReferenceType,
 } from "@/lib/custom-order-validation";
 import { getPrisma } from "@/lib/prisma/db";
+import { guardRateLimit } from "@/lib/security/rate-limit-guard";
 import { getReferenceStorage, REFERENCE_BUCKET } from "@/lib/supabase/admin";
 
 /**
@@ -45,6 +46,11 @@ export type PrepareReferenceUploadsResult =
 export async function prepareReferenceUploads(
   rawFiles: unknown,
 ): Promise<PrepareReferenceUploadsResult> {
+  // Rate limited before any Storage call: each accepted request can create up to
+  // MAX_REFERENCE_FILES objects, so this is the surface that most needs a bound.
+  const limit = await guardRateLimit("customOrderUpload");
+  if (!limit.allowed) return { ok: false, error: limit.message };
+
   const parsed = validateReferenceFiles(rawFiles);
   if (!parsed.ok) {
     return { ok: false, error: Object.values(parsed.errors)[0] ?? "Those files cannot be accepted." };
@@ -113,6 +119,9 @@ export type SubmitCustomOrderResult =
 export async function submitCustomOrderRequest(
   raw: unknown,
 ): Promise<SubmitCustomOrderResult> {
+  const limit = await guardRateLimit("customOrderSubmit");
+  if (!limit.allowed) return { ok: false, errors: { form: limit.message } };
+
   const input = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
 
   // A submission with no references has no upload token yet; mint one here.

@@ -3,6 +3,7 @@
 import type { AppointmentResult } from "@/data/appointment";
 import { validateAppointmentRequest } from "@/lib/appointment-validation";
 import { getPrisma } from "@/lib/prisma/db";
+import { guardRateLimit } from "@/lib/security/rate-limit-guard";
 
 /**
  * Server action for the /book-appointment request form.
@@ -18,6 +19,9 @@ import { getPrisma } from "@/lib/prisma/db";
  * same token resolves to the existing request instead of creating a second one.
  */
 export async function submitAppointmentRequest(raw: unknown): Promise<AppointmentResult> {
+  const limit = await guardRateLimit("appointmentRequest");
+  if (!limit.allowed) return { ok: false, errors: { form: limit.message } };
+
   const parsed = validateAppointmentRequest(raw);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 

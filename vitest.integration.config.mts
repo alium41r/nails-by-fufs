@@ -18,7 +18,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: /^@\//, replacement: fromHere("./src/") },
-      { find: "next/headers", replacement: fromHere("./tests/integration/support/next-headers.ts") },
+      { find: "next/headers", replacement: fromHere("./tests/integration/support/request-headers.ts") },
       { find: "next/cache", replacement: fromHere("./tests/integration/support/next-cache.ts") },
       { find: "server-only", replacement: fromHere("./tests/integration/support/server-only.ts") },
     ],

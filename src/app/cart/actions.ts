@@ -3,6 +3,7 @@
 import { createOrderFromCart, type CreateOrderResult } from "@/lib/order-server";
 import { isValidOrderToken } from "@/lib/order-validation";
 import { getPrisma } from "@/lib/prisma/db";
+import { guardRateLimit } from "@/lib/security/rate-limit-guard";
 
 /**
  * Places an order from the cart.
@@ -16,6 +17,13 @@ import { getPrisma } from "@/lib/prisma/db";
 export type PlaceOrderResult = CreateOrderResult;
 
 export async function placeOrder(raw: unknown): Promise<PlaceOrderResult> {
+  const limit = await guardRateLimit("orderPlacement");
+  if (!limit.allowed) {
+    // "unavailable" is the established code for "try again shortly"; narrowing it
+    // further would add a cart UI branch the checkout flow does not have yet.
+    return { ok: false, code: "unavailable", message: limit.message };
+  }
+
   const input = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   const orderToken = input.orderToken;
 

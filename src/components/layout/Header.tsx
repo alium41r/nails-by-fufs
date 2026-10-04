@@ -7,12 +7,13 @@ import { siteConfig } from "@/config/site";
 import { Container } from "./Container";
 import { MobileDrawer } from "./MobileDrawer";
 import { HeaderSearch } from "./HeaderSearch";
+import type { CatalogueProduct } from "@/lib/catalogue";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useCart } from "@/providers/CartProvider";
 import { Menu, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function Header() {
+export function Header({ products }: { products: CatalogueProduct[] }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
   const { totalItems } = useCart();
@@ -84,7 +85,7 @@ export function Header() {
             <div className="flex items-center gap-1 sm:gap-2">
               {/* Search (Desktop & Tablet) */}
               <div className="flex items-center">
-                <HeaderSearch />
+                <HeaderSearch products={products} />
               </div>
 
               {/* Theme Toggle (Desktop) */}

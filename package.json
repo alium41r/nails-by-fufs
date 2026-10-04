@@ -15,7 +15,9 @@
     "db:validate": "prisma validate",
     "db:pull": "prisma db pull",
     "db:generate": "prisma generate",
-    "db:sync": "prisma db pull && prisma generate"
+    "db:sync": "prisma db pull && prisma generate",
+    "test": "vitest run",
+    "db:seed:remote": "supabase db query --linked -f supabase/seed.sql"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
@@ -41,6 +43,7 @@
     "prisma": "^7.10.0",
     "supabase": "^2.116.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.3"
   }
 }

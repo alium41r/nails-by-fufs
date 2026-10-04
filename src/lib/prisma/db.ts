@@ -46,7 +46,15 @@ function createPrismaClient() {
     );
   }
 
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  // Serverless-sized pool. `pg` defaults to `max: 10` per instance, which across
+  // many short-lived Vercel functions holds far more Supavisor connections open
+  // than this app needs; Supabase's serverless guidance is to shrink Prisma's
+  // connection limit, which under the pg driver adapter is the pool `max`.
+  // 3 is deliberately below the default: it covers the widest parallel read in
+  // the catalogue layer (two queries) plus headroom for a transaction.
+  return new PrismaClient({
+    adapter: new PrismaPg({ connectionString, max: 3 }),
+  });
 }
 
 type PrismaClientSingleton = ReturnType<typeof createPrismaClient>;

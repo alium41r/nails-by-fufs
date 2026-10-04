@@ -3,13 +3,30 @@ import Link from "next/link";
 import { Shell } from "@/components/layout/Shell";
 import { Container } from "@/components/layout/Container";
 import { ImagePlaceholder } from "@/components/media/ImagePlaceholder";
-import { collections } from "@/data/collections";
-import { getProductsByCollection } from "@/data/products";
+import { getStorefrontCatalogue } from "@/lib/catalogue-server";
+import { productsInCollection } from "@/lib/catalogue";
 import { Button } from "@/components/ui/Button";
 import { ArrowRight, Sparkles } from "lucide-react";
 
-export default function CollectionsPage() {
-  const featuredCollection = collections.find((c) => c.featured && c.slug === "core-edit") || collections[0];
+// Reflect the live catalogue instead of a build-time snapshot.
+export const dynamic = "force-dynamic";
+
+export default async function CollectionsPage() {
+  const { collections, products } = await getStorefrontCatalogue();
+
+  const featuredCollection =
+    collections.find((c) => c.featured && c.slug === "core-edit") || collections[0];
+
+  if (!featuredCollection) {
+    return (
+      <Shell>
+        <div className="py-16 sm:py-24 text-center text-sm text-muted-foreground">
+          No collections are published yet.
+        </div>
+      </Shell>
+    );
+  }
+
   const secondaryCollections = collections.filter((c) => c.slug !== featuredCollection.slug);
 
   return (
@@ -65,7 +82,7 @@ export default function CollectionsPage() {
                     </span>
                     <div className="inline-flex items-center gap-1.5 text-accent text-xs">
                       <span className="text-[11px] font-mono text-muted-foreground">
-                        {getProductsByCollection(featuredCollection.slug).length} Sets
+                        {productsInCollection(products, featuredCollection.slug).length} Sets
                       </span>
                       <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
                     </div>
@@ -84,7 +101,7 @@ export default function CollectionsPage() {
                 {secondaryCollections.map((col, idx) => {
                   const colSpan = idx % 2 === 0 ? "lg:col-span-7" : "lg:col-span-5";
                   const imageRatio = idx % 2 === 0 ? "classic" : "portrait";
-                  const productCount = getProductsByCollection(col.slug).length;
+                  const productCount = productsInCollection(products, col.slug).length;
 
                   return (
                     <div key={col.slug} className={colSpan}>

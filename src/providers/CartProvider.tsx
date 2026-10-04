@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useSyncExternalStore, useMemo, useCallback } from "react";
-import { Product } from "@/data/products";
+import type { CatalogueProduct } from "@/lib/catalogue";
 
 export interface CartItem {
   id: string; // e.g. "glazed-truffle__size-m__len-Medium"
@@ -26,7 +26,7 @@ interface CartContextType {
   items: CartItem[];
   totalItems: number;
   subtotalPlaceholder: string;
-  addItem: (product: Product, size: string, length: string, quantity?: number) => void;
+  addItem: (product: CatalogueProduct, size: string, length: string, quantity?: number) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, newQuantity: number) => void;
   clearCart: () => void;
@@ -134,7 +134,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items]);
 
   const addItem = useCallback(
-    (product: Product, size: string, length: string, quantity: number = 1) => {
+    (product: CatalogueProduct, size: string, length: string, quantity: number = 1) => {
       const sanitizedSize = size.toLowerCase();
       const itemId = `${product.id}__size-${sanitizedSize}__len-${length}`;
       const sizeLabel = SIZE_LABELS[sanitizedSize] || size.toUpperCase();

@@ -1,4 +1,4 @@
-import { Product, products } from "@/data/products";
+import type { CatalogueProduct } from "@/lib/catalogue";
 
 export interface SearchOptions {
   query?: string;
@@ -9,10 +9,18 @@ export interface SearchOptions {
 }
 
 /**
- * Pure, deterministic search and filter utility for local product catalog.
- * Searches only across fields existing in the current product model.
+ * Pure, deterministic search and filter utility over an already
+ * visibility-filtered catalogue. The caller supplies the products (loaded
+ * server-side from Prisma), so this stays a plain function with no data source
+ * of its own — and it is unit-testable without a database.
+ *
+ * Behaviour is unchanged from the pre-integration implementation: multi-token
+ * matching, the same field set, and the same ordering rules.
  */
-export function searchProducts(options: SearchOptions = {}): Product[] {
+export function searchProducts(
+  catalogue: CatalogueProduct[],
+  options: SearchOptions = {},
+): CatalogueProduct[] {
   const {
     query = "",
     collection = "all",
@@ -24,7 +32,7 @@ export function searchProducts(options: SearchOptions = {}): Product[] {
   const trimmedQuery = query.trim().toLowerCase();
   const queryTokens = trimmedQuery ? trimmedQuery.split(/\s+/).filter(Boolean) : [];
 
-  const filtered = products.filter((product) => {
+  const filtered = catalogue.filter((product) => {
     // 1. Multi-token text matching across existing product fields
     if (queryTokens.length > 0) {
       const searchableFields = [
@@ -41,9 +49,7 @@ export function searchProducts(options: SearchOptions = {}): Product[] {
         .join(" ")
         .toLowerCase();
 
-      const matchesAllTokens = queryTokens.every((token) =>
-        searchableFields.includes(token)
-      );
+      const matchesAllTokens = queryTokens.every((token) => searchableFields.includes(token));
 
       if (!matchesAllTokens) return false;
     }
@@ -75,32 +81,34 @@ export function searchProducts(options: SearchOptions = {}): Product[] {
       const aIsNew = a.tag === "New" ? 1 : 0;
       const bIsNew = b.tag === "New" ? 1 : 0;
       if (aIsNew !== bIsNew) return bIsNew - aIsNew;
-      return 0; // preserve catalog order
+      return 0; // preserve catalogue order
     }
-    // "featured" sorting: "Featured" tag first, then "New", then catalog order
+    // "featured" sorting: "Featured" tag first, then "New", then catalogue order
     const aPriority = a.tag === "Featured" ? 2 : a.tag === "New" ? 1 : 0;
     const bPriority = b.tag === "Featured" ? 2 : b.tag === "New" ? 1 : 0;
     if (aPriority !== bPriority) return bPriority - aPriority;
-    return 0; // preserve catalog order
+    return 0; // preserve catalogue order
   });
 }
 
 /**
- * Returns distinct nail shapes present in the local product catalog.
+ * Returns distinct nail shapes present in the supplied catalogue.
  */
-export function getAvailableShapes(): string[] {
-  return Array.from(new Set(products.map((p) => p.shape)));
+export function getAvailableShapes(catalogue: CatalogueProduct[]): string[] {
+  return Array.from(new Set(catalogue.map((product) => product.shape)));
 }
 
 /**
- * Returns distinct nail lengths present in the local product catalog.
+ * Returns distinct nail lengths present in the supplied catalogue.
  */
-export function getAvailableLengths(): string[] {
-  return Array.from(new Set(products.map((p) => p.length)));
+export function getAvailableLengths(catalogue: CatalogueProduct[]): string[] {
+  return Array.from(new Set(catalogue.map((product) => product.length)));
 }
 
 /**
- * Manually curated discovery terms corresponding to actual product and collection data.
+ * Manually curated discovery terms corresponding to actual product and
+ * collection data. This is editorial UI copy, not catalogue content, so it stays
+ * in code rather than in the database.
  */
 export function getDiscoveryTags(): string[] {
   return [

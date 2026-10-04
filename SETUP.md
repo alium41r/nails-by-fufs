@@ -184,7 +184,13 @@ Prisma is used strictly as an ORM and type-safe query client. **Prisma never run
    npm run db:generate  # prisma generate → src/generated/prisma
    ```
    Because `src/generated/prisma` is gitignored, `npm install` regenerates it automatically through the `postinstall` script. `npm run db:sync` runs pull + generate together, and `npm run db:validate` checks the schema.
-5. **Server-side access** goes through `src/lib/prisma/db.ts` → `getPrisma()`. That module is marked `server-only` and authenticates as a privileged role that **bypasses catalogue RLS**, so the public visibility rules (`is_active` on the row *and* on its parent collection) must be re-applied in every public query.
+5. **Server-side access** goes through `src/lib/prisma/db.ts` → `getPrisma()`. That module is marked `server-only` and authenticates as a privileged role that **bypasses catalogue RLS**, so the public visibility rules (`is_active` on the row *and* on its parent collection) must be re-applied in every public query. The storefront does this in one place: `src/lib/catalogue-server.ts` (`getStorefrontCatalogue`), which every catalogue route reads through.
+
+6. **Seed the verified catalogue**:
+   ```bash
+   npm run db:seed:remote   # npx supabase db query --linked -f supabase/seed.sql
+   ```
+   `supabase/seed.sql` holds the real catalogue content. Every statement upserts on `slug`, so re-running updates rows in place instead of duplicating them. It deliberately never writes prices (`price_minor` / `currency` stay NULL) and never writes `product_images` — the project has no image files or Storage bucket, so inserting rows would mean inventing image metadata.
 
 ---
 
@@ -192,7 +198,8 @@ Prisma is used strictly as an ORM and type-safe query client. **Prisma never run
 
 | Scenario | Prescribed Command Sequence |
 | :--- | :--- |
-| **Fresh local project** | 1. `npx supabase start`<br>2. `npx prisma db pull`<br>3. `npx prisma generate` |
+| **Fresh local project** | 1. `npx supabase start` *(applies `supabase/seed.sql`)*<br>2. `npm run db:sync` |
+| **Seed catalogue data (remote)** | `npm run db:seed:remote` *(runs `npx supabase db query --linked -f supabase/seed.sql` — repeatable upsert on `slug`)* |
 | **Normal schema change** | 1. `npx supabase migration new <name>`<br>2. Edit `supabase/migrations/<ts>_<name>.sql`<br>3. `npx supabase migration up`<br>4. `npm run db:sync` *(runs `prisma db pull && prisma generate`)* |
 | **Full local reset** | 1. `npx supabase db reset` *(local Supabase stack only; requires Docker)*<br>2. `npm run db:sync` |
 | **Remote deployment** | 1. `npx supabase db push`<br>2. `npx prisma generate` *(in CI/build step)*<br>3. Deploy Next.js |

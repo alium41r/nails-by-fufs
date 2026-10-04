@@ -2,10 +2,10 @@ import React from "react";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { ImagePlaceholder } from "@/components/media/ImagePlaceholder";
-import { placeholderProducts } from "@/data/placeholder-products";
+import type { CatalogueProduct } from "@/lib/catalogue";
 import { ArrowRight } from "lucide-react";
 
-export function ProductPreview() {
+export function ProductPreview({ products }: { products: CatalogueProduct[] }) {
   return (
     <section
       className="py-14 sm:py-20 lg:py-24 border-b border-border bg-background"
@@ -36,7 +36,7 @@ export function ProductPreview() {
 
           {/* Product Grid: 2 columns mobile, 4 columns desktop */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
-            {placeholderProducts.slice(0, 4).map((product) => (
+            {products.slice(0, 4).map((product) => (
               <Link
                 key={product.id}
                 href="/shop"

@@ -7,25 +7,23 @@ import { Container } from "@/components/layout/Container";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { ImagePlaceholder } from "@/components/media/ImagePlaceholder";
-import { collections, getCollectionBySlug } from "@/data/collections";
-import { getProductsByCollection } from "@/data/products";
+import { getStorefrontCatalogue } from "@/lib/catalogue-server";
+import { collectionBySlug, productsInCollection } from "@/lib/catalogue";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+
+// Reflect the live catalogue instead of a build-time snapshot.
+export const dynamic = "force-dynamic";
 
 interface CollectionDetailPageProps {
   params: Promise<{ slug: string }>;
-}
-
-export async function generateStaticParams() {
-  return collections.map((col) => ({
-    slug: col.slug,
-  }));
 }
 
 export async function generateMetadata({
   params,
 }: CollectionDetailPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const collection = getCollectionBySlug(slug);
+  const { collections } = await getStorefrontCatalogue();
+  const collection = collectionBySlug(collections, slug);
 
   if (!collection) {
     return {
@@ -43,13 +41,14 @@ export default async function CollectionDetailPage({
   params,
 }: CollectionDetailPageProps) {
   const { slug } = await params;
-  const collection = getCollectionBySlug(slug);
+  const { collections, products } = await getStorefrontCatalogue();
+  const collection = collectionBySlug(collections, slug);
 
   if (!collection) {
     notFound();
   }
 
-  const collectionProducts = getProductsByCollection(collection.slug);
+  const collectionProducts = productsInCollection(products, collection.slug);
   const otherCollections = collections.filter((c) => c.slug !== collection.slug);
 
   return (

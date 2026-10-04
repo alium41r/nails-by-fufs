@@ -8,24 +8,23 @@ import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ProductGallery } from "@/components/shop/ProductGallery";
 import { ProductOptions } from "@/components/shop/ProductOptions";
 import { ProductCard } from "@/components/shop/ProductCard";
-import { products, getProductBySlug, getRelatedProducts } from "@/data/products";
+import { getStorefrontCatalogue } from "@/lib/catalogue-server";
+import { productBySlug, relatedProducts as getRelatedProducts } from "@/lib/catalogue";
 import { Sparkles, ShieldCheck, RefreshCw, ArrowRight } from "lucide-react";
+
+// Reflect the live catalogue instead of a build-time snapshot.
+export const dynamic = "force-dynamic";
 
 interface ProductDetailPageProps {
   params: Promise<{ slug: string }>;
-}
-
-export async function generateStaticParams() {
-  return products.map((product) => ({
-    slug: product.slug,
-  }));
 }
 
 export async function generateMetadata({
   params,
 }: ProductDetailPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const { products } = await getStorefrontCatalogue();
+  const product = productBySlug(products, slug);
 
   if (!product) {
     return {
@@ -43,13 +42,14 @@ export default async function ProductDetailPage({
   params,
 }: ProductDetailPageProps) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const { products } = await getStorefrontCatalogue();
+  const product = productBySlug(products, slug);
 
   if (!product) {
     notFound();
   }
 
-  const relatedProducts = getRelatedProducts(product.slug, 4);
+  const relatedProducts = getRelatedProducts(products, product.slug, 4);
 
   return (
     <Shell>

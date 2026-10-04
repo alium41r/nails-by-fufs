@@ -1,5 +1,3 @@
-import { PlaceholderProduct, placeholderProducts } from "./placeholder-products";
-
 export interface HeroContent {
   eyebrow: string;
   headline: string;
@@ -92,9 +90,6 @@ export const featuredCollectionContent: FeaturedCollectionContent = {
     alt: "Featured collection editorial presentation",
   },
 };
-
-export type PreviewProduct = PlaceholderProduct;
-export const previewProducts: PreviewProduct[] = placeholderProducts;
 
 export const customFeatureContent: CustomFeatureContent = {
   eyebrow: "Bespoke Requests",

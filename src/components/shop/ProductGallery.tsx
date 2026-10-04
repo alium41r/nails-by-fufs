@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { ProductImage } from "@/data/products";
+import type { CatalogueImage } from "@/lib/catalogue";
 import { ImagePlaceholder } from "@/components/media/ImagePlaceholder";
 import { cn } from "@/lib/utils";
 
 export interface ProductGalleryProps {
-  images: ProductImage[];
+  images: CatalogueImage[];
   productName: string;
 }
 

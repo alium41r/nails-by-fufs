@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, X, ArrowRight } from "lucide-react";
 import { searchProducts } from "@/lib/search";
-import { Product } from "@/data/products";
+import type { CatalogueProduct } from "@/lib/catalogue";
 import { cn } from "@/lib/utils";
 
-export function HeaderSearch() {
+export function HeaderSearch({ products }: { products: CatalogueProduct[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -16,16 +16,16 @@ export function HeaderSearch() {
   const router = useRouter();
 
   // Filter preview products in real-time (up to 4 items)
-  const previewResults: Product[] = React.useMemo(() => {
+  const previewResults: CatalogueProduct[] = React.useMemo(() => {
     if (!query.trim()) return [];
-    return searchProducts({ query }).slice(0, 4);
-  }, [query]);
+    return searchProducts(products, { query }).slice(0, 4);
+  }, [products, query]);
 
   // Total matching count
   const totalCount = React.useMemo(() => {
     if (!query.trim()) return 0;
-    return searchProducts({ query }).length;
-  }, [query]);
+    return searchProducts(products, { query }).length;
+  }, [products, query]);
 
   const handleToggle = () => {
     setIsOpen((prev) => {

@@ -1,11 +1,11 @@
 import React from "react";
 import Link from "next/link";
 import { ImagePlaceholder } from "@/components/media/ImagePlaceholder";
-import { Product } from "@/data/products";
+import type { CatalogueProduct } from "@/lib/catalogue";
 import { cn } from "@/lib/utils";
 
 export interface ProductCardProps {
-  product: Product;
+  product: CatalogueProduct;
   className?: string;
   priority?: boolean;
 }

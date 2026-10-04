@@ -3,13 +3,13 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { Product } from "@/data/products";
+import type { CatalogueProduct } from "@/lib/catalogue";
 import { useCart } from "@/providers/CartProvider";
 import { Check, Info, Minus, Plus, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ProductOptionsProps {
-  product: Product;
+  product: CatalogueProduct;
 }
 
 const AVAILABLE_SIZES = [

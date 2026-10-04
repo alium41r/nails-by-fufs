@@ -141,33 +141,50 @@ Supabase SQL is the **single source of truth** for all database migrations.
 ### Step 6: Configure Prisma Client & Introspect Schema *(Optional — Relational DB Projects Only)*
 *Skip this step if `brain.md` marks Database as Inactive.*
 
-Prisma is used strictly as an ORM and type-safe query client. **Prisma never runs migrations.**
-1. **Install Prisma**:
+Prisma is used strictly as an ORM and type-safe query client. **Prisma never runs migrations** — per [`project_constitution.md`](project_constitution.md) §"Database Migrations", never run `prisma migrate dev`, `prisma migrate deploy` or `prisma migrate reset`. Supabase SQL migrations in `supabase/migrations/` are the only schema authority; Prisma is a derived layer, and `prisma/migrations/` must not exist.
+
+> This step is already complete for this repository. The shape is recorded here because the Prisma 7 configuration differs from older guides.
+
+1. **Install Prisma 7, the pg driver adapter and the runtime driver**:
    ```bash
-   npm install @prisma/client
-   npm install -D prisma
+   npm install @prisma/client @prisma/adapter-pg pg server-only
+   npm install -D prisma dotenv
    ```
-2. **Create Baseline `prisma/schema.prisma`**:
+2. **Connection URLs live in `prisma7.config.ts`, not in the schema.** Prisma 7 removed both `url` and `directUrl` from `datasource` blocks — keeping `directUrl` fails validation with `P1012: The datasource property 'directUrl' is no longer supported in schema files`.
    ```prisma
-   datasource db {
-     provider  = "postgresql"
-     url       = env("DATABASE_URL")
-     directUrl = env("DIRECT_URL")
+   // prisma/schema.prisma — models are produced by introspection, never hand-written
+   generator client {
+     provider        = "prisma-client"
+     output          = "../src/generated/prisma"
+     previewFeatures = ["partialIndexes"]
    }
 
-   generator client {
-     provider = "prisma-client-js"
+   datasource db {
+     provider = "postgresql"
    }
    ```
-3. **Introspect Live Database**:
-   Pull the actual database schema created by Supabase into `prisma/schema.prisma`:
-   ```bash
-   npx prisma db pull
+   ```ts
+   // prisma7.config.ts — the filename Prisma 7.10 generates;
+   // `prisma.config.ts` is the legacy candidate it also accepts.
+   import "dotenv/config";
+   import { defineConfig } from "prisma/config";
+
+   export default defineConfig({
+     schema: "prisma/schema.prisma",
+     datasource: { url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"] },
+   });
    ```
-4. **Generate Typed Prisma Client**:
+3. **Introspect the live database** (reads only):
    ```bash
-   npx prisma generate
+   npm run db:pull      # prisma db pull — rewrites prisma/schema.prisma
    ```
+   `prisma/schema.prisma` is 100% generated: `db pull` replaces the whole file and drops any hand-written comment, so keep derivation notes here and in `prisma7.config.ts`, and never hand-edit models. That is also what makes the CI drift check in the operational table below meaningful.
+4. **Generate the typed client** (needs no credentials, so it is CI-safe):
+   ```bash
+   npm run db:generate  # prisma generate → src/generated/prisma
+   ```
+   Because `src/generated/prisma` is gitignored, `npm install` regenerates it automatically through the `postinstall` script. `npm run db:sync` runs pull + generate together, and `npm run db:validate` checks the schema.
+5. **Server-side access** goes through `src/lib/prisma/db.ts` → `getPrisma()`. That module is marked `server-only` and authenticates as a privileged role that **bypasses catalogue RLS**, so the public visibility rules (`is_active` on the row *and* on its parent collection) must be re-applied in every public query.
 
 ---
 
@@ -177,7 +194,7 @@ Prisma is used strictly as an ORM and type-safe query client. **Prisma never run
 | :--- | :--- |
 | **Fresh local project** | 1. `npx supabase start`<br>2. `npx prisma db pull`<br>3. `npx prisma generate` |
 | **Normal schema change** | 1. `npx supabase migration new <name>`<br>2. Edit `supabase/migrations/<ts>_<name>.sql`<br>3. `npx supabase migration up`<br>4. `npm run db:sync` *(runs `prisma db pull && prisma generate`)* |
-| **Full local reset** | `npm run db:reset` *(runs `npx supabase db reset && npx prisma db pull && npx prisma generate`)* |
+| **Full local reset** | 1. `npx supabase db reset` *(local Supabase stack only; requires Docker)*<br>2. `npm run db:sync` |
 | **Remote deployment** | 1. `npx supabase db push`<br>2. `npx prisma generate` *(in CI/build step)*<br>3. Deploy Next.js |
 | **Continuous Integration (CI)** | 1. `npx supabase start`<br>2. `npx prisma db pull && git diff --exit-code prisma/schema.prisma`<br>3. `npx prisma generate`<br>4. `npx vitest run`<br>5. `npx supabase stop` |
 
@@ -186,13 +203,18 @@ Prisma is used strictly as an ORM and type-safe query client. **Prisma never run
 ### Step 7: Configure Environment Variables
 1. **Copy Template to Local Environment**:
    ```bash
-   cp .env.example .env.local
+   cp .env.example .env
    ```
+   Use `.env` (not only `.env.local`): Next.js loads both, but the Prisma CLI loads `.env` through `prisma7.config.ts`.
 2. **Populate Secrets**:
    - For public websites: Set `NEXT_PUBLIC_APP_URL="http://localhost:3000"`.
-   - For database/auth projects: Fill `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DIRECT_URL`, and `DATABASE_URL` using values from Step 5.
+   - For database/auth projects: fill the two database URLs, which are deliberately different connections:
+     - `DIRECT_URL` — Supabase Supavisor **session** pooler, port **5432**. Used only by the Prisma CLI for introspection.
+     - `DATABASE_URL` — Supabase Supavisor **transaction** pooler, port **6543**. Used by the app at runtime; the transaction mode suits Vercel's short-lived serverless functions.
+     - `DATABASE_URL` must include `uselibpqcompat=true`. Supabase's pooler serves a certificate from a private CA, and pg 8.23+ treats `sslmode=require` as `verify-full`, so a plain `sslmode=require` fails with *"self-signed certificate in certificate chain"*. See `.env.example` for the full explanation, including why the legacy `pgbouncer=true` flag must **not** be used with Prisma 7.
+     - Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` when Auth/Storage are introduced.
    - *Note*: Do not set `NODE_ENV` in environment files — Next.js sets it automatically. Use `APP_ENV` for custom environment names.
-3. **Rule**: Never commit `.env.local` to Git. Verify `.gitignore` rules.
+3. **Rule**: Never commit `.env` / `.env.local` to Git. Verify `.gitignore` rules (only `.env.example` is committable).
 
 ---
 

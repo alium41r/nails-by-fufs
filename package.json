@@ -2,29 +2,43 @@
   "name": "nails-by-fufs",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=24.0.0 <25.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:pull": "prisma db pull",
+    "db:generate": "prisma generate",
+    "db:sync": "prisma db pull && prisma generate"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@supabase/supabase-js": "^2.112.4",
     "clsx": "^2.1.1",
     "lucide-react": "^1.35.0",
     "next": "16.3.3",
+    "pg": "^8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24.19.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "prisma": "^7.10.0",
     "supabase": "^2.116.0",
     "tailwindcss": "^4",
     "typescript": "^5"

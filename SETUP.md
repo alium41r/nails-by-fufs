@@ -200,6 +200,7 @@ Prisma is used strictly as an ORM and type-safe query client. **Prisma never run
 | :--- | :--- |
 | **Fresh local project** | 1. `npx supabase start` *(applies `supabase/seed.sql`)*<br>2. `npm run db:sync` |
 | **Seed catalogue data (remote)** | `npm run db:seed:remote` *(runs `npx supabase db query --linked -f supabase/seed.sql` — repeatable upsert on `slug`)* |
+| **Orphaned reference cleanup** | Use the documented query at the end of `supabase/migrations/20261004130722_custom_orders.sql`: remove unlinked `custom_order_attachments` (and their Storage objects, with the secret key) once an upload window is clearly abandoned. |
 | **Normal schema change** | 1. `npx supabase migration new <name>`<br>2. Edit `supabase/migrations/<ts>_<name>.sql`<br>3. `npx supabase migration up`<br>4. `npm run db:sync` *(runs `prisma db pull && prisma generate`)* |
 | **Full local reset** | 1. `npx supabase db reset` *(local Supabase stack only; requires Docker)*<br>2. `npm run db:sync` |
 | **Remote deployment** | 1. `npx supabase db push`<br>2. `npx prisma generate` *(in CI/build step)*<br>3. Deploy Next.js |
@@ -219,7 +220,8 @@ Prisma is used strictly as an ORM and type-safe query client. **Prisma never run
      - `DIRECT_URL` — Supabase Supavisor **session** pooler, port **5432**. Used only by the Prisma CLI for introspection.
      - `DATABASE_URL` — Supabase Supavisor **transaction** pooler, port **6543**. Used by the app at runtime; the transaction mode suits Vercel's short-lived serverless functions.
      - `DATABASE_URL` must include `uselibpqcompat=true`. Supabase's pooler serves a certificate from a private CA, and pg 8.23+ treats `sslmode=require` as `verify-full`, so a plain `sslmode=require` fails with *"self-signed certificate in certificate chain"*. See `.env.example` for the full explanation, including why the legacy `pgbouncer=true` flag must **not** be used with Prisma 7.
-     - Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` when Auth/Storage are introduced.
+     - Custom-order reference images need two server-only variables: `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (the current-format `sb_secret_...` key). They are used only by `src/lib/supabase/admin.ts` to mint short-lived signed upload/download URLs for the private `custom-order-references` bucket. The key is privileged — it bypasses Storage RLS and the table grants that keep submissions private — so it must never be exposed to the browser. See the comment block in `.env.example`.
+     - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and Auth variables are still not required: customers do not have accounts, and no key of any kind is shipped to the browser (upload URLs are signed server-side).
    - *Note*: Do not set `NODE_ENV` in environment files — Next.js sets it automatically. Use `APP_ENV` for custom environment names.
 3. **Rule**: Never commit `.env` / `.env.local` to Git. Verify `.gitignore` rules (only `.env.example` is committable).
 

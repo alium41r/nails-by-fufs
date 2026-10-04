@@ -70,3 +70,46 @@ model products {
   @@index([collection_id])
   @@index([is_active], where: raw("(is_active = true)"))
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model custom_order_attachments {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id            String?                @db.Uuid
+  submission_token      String                 @db.Uuid
+  storage_path          String                 @unique
+  original_filename     String
+  content_type          String
+  size_bytes            BigInt
+  sort_order            Int                    @default(0)
+  created_at            DateTime               @default(now()) @db.Timestamptz(6)
+  custom_order_requests custom_order_requests? @relation(fields: [request_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([request_id])
+  @@index([submission_token], map: "custom_order_attachments_token_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model custom_order_requests {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_token         String                     @unique @db.Uuid
+  name                     String
+  email                    String
+  instagram                String?
+  shape                    String
+  length                   String
+  sizing_preference        String
+  standard_size            String?
+  custom_measurements      String?
+  color_palette            String?
+  concept_description      String
+  event_date               String?
+  budget_guidance          String?
+  additional_notes         String?
+  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  custom_order_attachments custom_order_attachments[]
+
+  @@index([created_at(sort: Desc)])
+}

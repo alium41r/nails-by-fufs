@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
@@ -13,8 +13,13 @@ import {
   CustomOrderFormState,
   UploadedReferenceImage,
 } from "@/data/custom-order";
-import { Sparkles, Heart, ArrowRight, RotateCcw } from "lucide-react";
+import { Sparkles, Heart, ArrowRight, RotateCcw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  prepareReferenceUploads,
+  submitCustomOrderRequest,
+  type ReferenceUploadTarget,
+} from "@/app/custom/actions";
 
 export function CustomOrderForm() {
   const [formData, setFormData] = useState<CustomOrderFormState>(INITIAL_CUSTOM_ORDER_STATE);
@@ -22,6 +27,23 @@ export function CustomOrderForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [attachedCount, setAttachedCount] = useState(0);
+
+  // Upload targets are minted once by the server for the current selection. A
+  // retry reuses them, so files that already uploaded are not sent again and a
+  // double submission resolves to the same request row.
+  const uploadSessionRef = useRef<{
+    token: string;
+    targets: ReferenceUploadTarget[];
+    uploaded: Set<string>;
+  } | null>(null);
+
+  const handleReferenceChange = (nextImages: UploadedReferenceImage[]) => {
+    setReferenceImages(nextImages);
+    // Changing the selection invalidates the scoped upload targets.
+    uploadSessionRef.current = null;
+  };
 
   const handleInputChange = (field: keyof CustomOrderFormState, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -52,17 +74,99 @@ export function CustomOrderForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    // Simulate brief client-side submission feedback
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setSubmitError(null);
+
+    try {
+      let submissionToken: string | undefined;
+
+      if (referenceImages.length > 0) {
+        const files = referenceImages
+          .map((image) => image.file)
+          .filter((file): file is File => Boolean(file));
+
+        if (files.length !== referenceImages.length) {
+          setSubmitError("One of the selected files is no longer available. Please re-attach your references.");
+          return;
+        }
+
+        if (!uploadSessionRef.current) {
+          const prepared = await prepareReferenceUploads(
+            files.map((file) => ({
+              filename: file.name,
+              contentType: file.type,
+              sizeBytes: file.size,
+            })),
+          );
+
+          if (!prepared.ok) {
+            setSubmitError(prepared.error);
+            return;
+          }
+
+          uploadSessionRef.current = {
+            token: prepared.submissionToken,
+            targets: prepared.targets,
+            uploaded: new Set<string>(),
+          };
+        }
+
+        const session = uploadSessionRef.current;
+        let failed = 0;
+
+        for (const [index, file] of files.entries()) {
+          const target = session.targets[index];
+          if (!target || session.uploaded.has(target.path)) continue;
+
+          try {
+            // Direct browser → Storage upload with the short-lived signed URL;
+            // the image body never passes through the Next.js server.
+            const response = await fetch(target.signedUrl, {
+              method: "PUT",
+              headers: { "content-type": file.type, "x-upsert": "false" },
+              body: file,
+            });
+
+            if (response.ok) session.uploaded.add(target.path);
+            else failed += 1;
+          } catch {
+            failed += 1;
+          }
+        }
+
+        if (failed > 0 && session.uploaded.size === 0) {
+          setSubmitError("We could not upload your reference images. Please check your connection and try again.");
+          return;
+        }
+
+        submissionToken = session.token;
+      }
+
+      const result = await submitCustomOrderRequest({ submissionToken, ...formData });
+
+      if (!result.ok) {
+        setErrors((previous) => ({ ...previous, ...result.errors }));
+        setSubmitError(
+          result.errors.form ??
+            Object.values(result.errors)[0] ??
+            "Please check the highlighted fields and try again.",
+        );
+        return;
+      }
+
+      setAttachedCount(result.referenceCount);
       setIsSubmitted(true);
       window.scrollTo({ top: 120, behavior: "smooth" });
-    }, 600);
+    } catch {
+      setSubmitError("Something went wrong sending your request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -70,6 +174,10 @@ export function CustomOrderForm() {
     setReferenceImages([]);
     setErrors({});
     setIsSubmitted(false);
+    setIsSubmitting(false);
+    setSubmitError(null);
+    setAttachedCount(0);
+    uploadSessionRef.current = null;
   };
 
   if (isSubmitted) {
@@ -93,7 +201,7 @@ export function CustomOrderForm() {
         <div className="w-full bg-surface-subtle border border-border p-5 text-left flex flex-col gap-3 text-xs font-sans">
           <div className="flex items-center justify-between border-b border-border/80 pb-2">
             <span className="eyebrow text-accent">Design Summary Preview</span>
-            <span className="text-[10px] font-mono text-muted-foreground">Frontend Prototype State</span>
+            <span className="text-[10px] font-mono text-muted-foreground">Received by the Studio</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-muted-foreground">
@@ -113,7 +221,7 @@ export function CustomOrderForm() {
             </div>
             <div>
               <span className="text-[10px] uppercase font-mono block text-foreground">References</span>
-              <span>{referenceImages.length} {referenceImages.length === 1 ? "Image attached" : "Images attached"}</span>
+              <span>{attachedCount} {attachedCount === 1 ? "Image attached" : "Images attached"}</span>
             </div>
           </div>
 
@@ -322,7 +430,7 @@ export function CustomOrderForm() {
         <div className="pt-2">
           <ReferenceUploader
             images={referenceImages}
-            onChange={setReferenceImages}
+            onChange={handleReferenceChange}
             maxFiles={6}
           />
         </div>
@@ -444,6 +552,16 @@ export function CustomOrderForm() {
           SUBMIT AREA
       ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-col items-center gap-4 text-center">
+        {submitError && (
+          <div
+            role="alert"
+            className="w-full flex items-start gap-2 text-xs text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 p-3 text-left"
+          >
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{submitError}</span>
+          </div>
+        )}
+
         <Button
           type="submit"
           variant="primary"

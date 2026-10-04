@@ -1,28 +1,18 @@
-export interface ContactFormState {
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-}
+/**
+ * Contact page copy.
+ *
+ * The previous version of this page also carried a contact *form* whose submit
+ * handler was a timer that showed a success state without sending anything. That
+ * flow has been removed: until a real contact backend exists, the page publishes
+ * the studio's direct contact details instead of pretending to deliver a message.
+ *
+ * The form state/validation helpers that only that form used (ContactFormState,
+ * contactInquiryReasons, INITIAL_CONTACT_STATE) were removed with it.
+ */
 
 export const contactHero = {
   eyebrow: "Get in Touch",
   title: "Contact the Studio",
   description:
-    "Have a question about a set, sizing, or general inquiries? Send a note below and Fatima will respond directly.",
-};
-
-export const contactInquiryReasons = [
-  "General Inquiry",
-  "Sizing & Fit Question",
-  "Custom Commission Question",
-  "Order Assistance",
-  "Collaboration / Press",
-];
-
-export const INITIAL_CONTACT_STATE: ContactFormState = {
-  name: "",
-  email: "",
-  subject: "General Inquiry",
-  message: "",
+    "Questions about a set, sizing, an order or a commission? Reach Fatima directly by email or phone — the studio replies from there.",
 };

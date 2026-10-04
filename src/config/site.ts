@@ -63,6 +63,15 @@ export const siteConfig: SiteConfig = {
         { label: "Contact", href: "/contact" },
       ],
     },
+    {
+      title: "Policies",
+      items: [
+        { label: "Privacy Policy", href: "/privacy-policy" },
+        { label: "Returns & Refunds", href: "/returns-refunds" },
+        { label: "Shipping & Service", href: "/shipping-policy" },
+        { label: "Terms & Conditions", href: "/terms" },
+      ],
+    },
   ],
   socials: [
     { label: "Instagram", href: "https://instagram.com" },

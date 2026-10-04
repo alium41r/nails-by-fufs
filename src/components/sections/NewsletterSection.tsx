@@ -1,23 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { Container } from "@/components/layout/Container";
-import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { newsletterContent } from "@/data/homepage";
+import { BUSINESS_EMAIL_HREF, businessDetails } from "@/config/business";
 
 export function NewsletterSection() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim()) {
-      setSubmitted(true);
-      setEmail("");
-    }
-  };
-
   return (
     <section
       className="py-16 sm:py-24 border-b border-border bg-background"
@@ -40,35 +29,21 @@ export function NewsletterSection() {
             {newsletterContent.description}
           </p>
 
-          <div className="w-full pt-3">
-            {submitted ? (
-              <div className="p-3.5 bg-accent-subtle border border-accent/30 text-xs text-accent font-medium">
-                Thank you. You are on the private studio release list.
-              </div>
-            ) : (
-              <form
-                onSubmit={handleSubmit}
-                className="flex flex-col sm:flex-row gap-2.5 max-w-sm mx-auto"
-              >
-                <Input
-                  type="email"
-                  required
-                  placeholder="Your email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 text-xs"
-                  aria-label="Email address for studio release updates"
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="md"
-                  className="shrink-0 sm:px-6 text-xs uppercase tracking-wider"
-                >
-                  Join
-                </Button>
-              </form>
-            )}
+          <div className="w-full pt-3 flex flex-col items-center gap-2.5">
+            {/* No newsletter backend exists yet, so this opens the studio's real
+                inbox instead of collecting an address and confirming a
+                subscription that was never recorded. */}
+            <Button
+              href={`${BUSINESS_EMAIL_HREF}?subject=${encodeURIComponent("Studio release updates")}`}
+              variant="primary"
+              size="md"
+              className="text-xs uppercase tracking-wider sm:px-8"
+            >
+              Email to Join the Release List
+            </Button>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Opens your email app, or write to {businessDetails.email}.
+            </p>
           </div>
         </div>
       </Container>

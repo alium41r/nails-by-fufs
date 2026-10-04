@@ -1,24 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { siteConfig } from "@/config/site";
+import { BUSINESS_EMAIL_HREF, businessDetails } from "@/config/business";
 import { Container } from "./Container";
-import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
 export function Footer() {
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) {
-      setSubscribed(true);
-      setEmail("");
-    }
-  };
-
   return (
     <footer className="w-full bg-surface border-t border-border mt-auto transition-colors duration-150">
       <Container size="wide" className="py-12 sm:py-16 lg:py-20">
@@ -45,36 +34,26 @@ export function Footer() {
                 Receive release updates for new collections and custom order openings.
               </p>
 
-              {subscribed ? (
-                <div className="p-3 bg-surface-subtle border border-border text-xs text-accent font-medium">
-                  Thank you for subscribing.
-                </div>
-              ) : (
-                <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-2 mt-1">
-                  <Input
-                    type="email"
-                    required
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-10 text-xs"
-                    aria-label="Email address for studio newsletter"
-                  />
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    className="shrink-0 h-10 px-4 text-[11px]"
-                  >
-                    Subscribe
-                  </Button>
-                </form>
-              )}
+              {/* There is no newsletter backend yet. Rather than showing a
+                  subscribe form that cannot send — and confirming a
+                  subscription that never happened — this points at the studio's
+                  real inbox, which is the channel that actually works. */}
+              <Button
+                href={`${BUSINESS_EMAIL_HREF}?subject=${encodeURIComponent("Studio release updates")}`}
+                variant="primary"
+                size="sm"
+                className="mt-1 h-10 px-4 text-[11px] w-full sm:w-auto"
+              >
+                Email to Subscribe
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Opens your email app, or write to {businessDetails.email}.
+              </p>
             </div>
           </div>
 
           {/* Footer Navigation Columns */}
-          <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-8">
+          <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-8">
             {siteConfig.footerNav.map((section) => (
               <div key={section.title} className="flex flex-col gap-3.5">
                 <span className="eyebrow text-foreground/90 font-medium">

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Shell } from "@/components/layout/Shell";
+import { StudioBoundary } from "@/components/studio/StudioBoundary";
 import { getStorefrontCatalogue } from "@/lib/catalogue-server";
 import { Hero } from "@/components/sections/Hero";
 import { FeaturedCollection } from "@/components/sections/FeaturedCollection";
@@ -20,18 +21,20 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const { products } = await getStorefrontCatalogue();
+  const { products, collections } = await getStorefrontCatalogue();
 
   return (
-    <Shell>
-      <Hero />
-      <FeaturedCollection />
-      <ProductPreview products={products} />
-      <CustomFeature />
-      <HowItWorksPreview />
-      <EditorialGallery />
-      <FinalCTA />
-      <NewsletterSection />
-    </Shell>
+    <StudioBoundary products={products} collections={collections}>
+      <Shell>
+        <Hero />
+        <FeaturedCollection />
+        <ProductPreview products={products} />
+        <CustomFeature />
+        <HowItWorksPreview />
+        <EditorialGallery />
+        <FinalCTA />
+        <NewsletterSection />
+      </Shell>
+    </StudioBoundary>
   );
 }

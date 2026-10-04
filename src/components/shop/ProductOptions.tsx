@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import type { CatalogueProduct } from "@/lib/catalogue";
 import { useCart } from "@/providers/CartProvider";
+import { useStudioProduct } from "@/lib/studio/hooks";
 import { Check, Info, Minus, Plus, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,9 +24,18 @@ const AVAILABLE_SIZES = [
 const AVAILABLE_LENGTHS = ["Short", "Medium", "Long"] as const;
 
 export function ProductOptions({ product }: ProductOptionsProps) {
+  const merged = useStudioProduct(product);
   const { addItem } = useCart();
   const [selectedSize, setSelectedSize] = useState("m");
-  const [selectedLength, setSelectedLength] = useState<string>(product.length || "Medium");
+  /**
+   * The customer's own pick wins; until they make one, the row follows the
+   * catalogue default, so a length edited in Studio Mode shows up here instead
+   * of the value captured on first render.
+   *
+   * The cart is still handed the untouched `product`, never the Studio draft.
+   */
+  const [chosenLength, setChosenLength] = useState<string | null>(null);
+  const selectedLength = chosenLength ?? merged.length ?? product.length ?? "Medium";
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
 
@@ -90,7 +100,7 @@ export function ProductOptions({ product }: ProductOptionsProps) {
                 type="button"
                 role="radio"
                 aria-checked={isSelected}
-                onClick={() => setSelectedLength(len)}
+                onClick={() => setChosenLength(len)}
                 className={cn(
                   "h-10 border text-xs uppercase tracking-[0.14em] transition-all duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent cursor-pointer flex items-center justify-center rounded-xs",
                   isSelected
@@ -147,7 +157,7 @@ export function ProductOptions({ product }: ProductOptionsProps) {
                 Added to Bag
               </span>
             ) : (
-              `Add to Bag • ${product.price}`
+              `Add to Bag • ${merged.price}`
             )}
           </Button>
         </div>

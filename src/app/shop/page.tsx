@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Shell } from "@/components/layout/Shell";
+import { StudioBoundary } from "@/components/studio/StudioBoundary";
 import { getStorefrontCatalogue } from "@/lib/catalogue-server";
 import { ShopContent } from "./shop-content";
 
@@ -10,10 +11,12 @@ export default async function ShopPage() {
   const { collections, products } = await getStorefrontCatalogue();
 
   return (
-    <Shell>
-      <Suspense fallback={<div className="min-h-[50vh] bg-background" />}>
-        <ShopContent collections={collections} products={products} />
-      </Suspense>
-    </Shell>
+    <StudioBoundary products={products} collections={collections}>
+      <Shell>
+        <Suspense fallback={<div className="min-h-[50vh] bg-background" />}>
+          <ShopContent collections={collections} products={products} />
+        </Suspense>
+      </Shell>
+    </StudioBoundary>
   );
 }

@@ -109,3 +109,19 @@ body {
   outline: none;
   box-shadow: 0 0 0 1px var(--accent);
 }
+
+/* Studio Mode Storefront Layout Offsets (Active Admin Session Only) */
+html[data-studio-active="true"] body {
+  padding-top: 2.75rem; /* 44px Studio Mode toolbar height */
+}
+
+html[data-studio-active="true"] header.sticky {
+  top: 2.75rem;
+}
+
+@media (min-width: 1024px) {
+  html[data-studio-active="true"] .lg\:top-28 {
+    top: 9.75rem;
+  }
+}
+

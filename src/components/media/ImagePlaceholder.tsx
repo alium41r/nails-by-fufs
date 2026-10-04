@@ -55,6 +55,8 @@ export function ImagePlaceholder({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
+          // An aria-label on the wrapper div of a plain image is not announced,
+          // so the caller's label becomes the image's accessible name.
           alt={typeof props["aria-label"] === "string" ? props["aria-label"] : label}
           className="absolute inset-0 h-full w-full object-cover"
           loading="lazy"

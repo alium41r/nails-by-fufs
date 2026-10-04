@@ -36,6 +36,7 @@ export const siteConfig: SiteConfig = {
     { label: "Shop", href: "/shop" },
     { label: "Collections", href: "/collections" },
     { label: "Custom", href: "/custom" },
+    { label: "Book Appointment", href: "/book-appointment" },
     { label: "How It Works", href: "/how-it-works" },
     { label: "Size Guide", href: "/size-guide" },
   ],
@@ -46,6 +47,7 @@ export const siteConfig: SiteConfig = {
         { label: "All Press-Ons", href: "/shop" },
         { label: "Collections", href: "/collections" },
         { label: "Custom Orders", href: "/custom" },
+        { label: "Book Appointment", href: "/book-appointment" },
       ],
     },
     {

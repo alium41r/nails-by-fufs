@@ -57,6 +57,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
     { label: "Shop", href: "/shop" },
     { label: "Collections", href: "/collections" },
     { label: "Custom", href: "/custom" },
+    { label: "Book Appointment", href: "/book-appointment" },
     { label: "How It Works", href: "/how-it-works" },
     { label: "Size Guide", href: "/size-guide" },
     { label: "About", href: "/about" },

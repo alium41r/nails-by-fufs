@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useSyncExternalStore, useMemo, useCallback } from "react";
 import type { CatalogueProduct } from "@/lib/catalogue";
+import { SIZE_LABELS, SIZE_IDS, MAX_QUANTITY_PER_LINE, MAX_LINE_ITEMS } from "@/lib/order-validation";
 
 export interface CartItem {
   id: string; // e.g. "glazed-truffle__size-m__len-Medium"
@@ -36,14 +37,6 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const STORAGE_KEY = "nails-by-fufs-cart";
 
-const SIZE_LABELS: Record<string, string> = {
-  xs: "XS",
-  s: "S",
-  m: "M",
-  l: "L",
-  custom: "Custom",
-};
-
 // In-memory store and listeners for useSyncExternalStore
 let cartItemsStore: CartItem[] = [];
 let hasLoadedFromStorage = false;
@@ -55,6 +48,51 @@ function emitChange() {
   }
 }
 
+/**
+ * The persisted bag is untrusted input: it lives in localStorage, which the
+ * customer — or any script running on the page — can edit freely. Nothing here
+ * is treated as authoritative (checkout re-prices every line server-side from
+ * the catalogue), but the UI should not render junk from a tampered store, so
+ * entries are shape-checked, options validated, quantities clamped and the
+ * number of lines bounded.
+ */
+function sanitizeStoredItems(raw: unknown[]): CartItem[] {
+  const items: CartItem[] = [];
+
+  for (const entry of raw) {
+    if (items.length >= MAX_LINE_ITEMS) break;
+    if (typeof entry !== "object" || entry === null) continue;
+
+    const item = entry as Partial<CartItem>;
+    const size = typeof item.size === "string" ? item.size.toLowerCase() : "";
+    const quantity = typeof item.quantity === "number" && Number.isFinite(item.quantity) ? item.quantity : 0;
+
+    if (
+      typeof item.id !== "string" ||
+      typeof item.productId !== "string" ||
+      typeof item.productSlug !== "string" ||
+      typeof item.name !== "string" ||
+      typeof item.length !== "string" ||
+      !SIZE_IDS.includes(size as keyof typeof SIZE_LABELS) ||
+      quantity < 1
+    ) {
+      continue;
+    }
+
+    items.push({
+      ...(item as CartItem),
+      size,
+      sizeLabel: SIZE_LABELS[size as keyof typeof SIZE_LABELS] ?? size.toUpperCase(),
+      // Display-only string; long or unexpected values fall back to the
+      // placeholder rather than rendering whatever was injected.
+      price: typeof item.price === "string" && item.price.length <= 16 ? item.price : "$XX",
+      quantity: Math.min(MAX_QUANTITY_PER_LINE, Math.max(1, Math.round(quantity))),
+    });
+  }
+
+  return items;
+}
+
 function loadInitialCart() {
   if (typeof window === "undefined" || hasLoadedFromStorage) return;
   try {
@@ -62,7 +100,7 @@ function loadInitialCart() {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        cartItemsStore = parsed;
+        cartItemsStore = sanitizeStoredItems(parsed);
       }
     }
   } catch {
@@ -137,7 +175,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     (product: CatalogueProduct, size: string, length: string, quantity: number = 1) => {
       const sanitizedSize = size.toLowerCase();
       const itemId = `${product.id}__size-${sanitizedSize}__len-${length}`;
-      const sizeLabel = SIZE_LABELS[sanitizedSize] || size.toUpperCase();
+      const sizeLabel = SIZE_LABELS[sanitizedSize as keyof typeof SIZE_LABELS] ?? size.toUpperCase();
 
       const existingIndex = cartItemsStore.findIndex((item) => item.id === itemId);
 

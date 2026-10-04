@@ -163,21 +163,17 @@ export function CartContent() {
                     </div>
                   </div>
 
-                  {/* Non-functional Checkout Button Placeholder */}
+                  {/* Proceed to Checkout */}
                   <div className="flex flex-col gap-2 pt-2">
                     <Button
-                      type="button"
+                      href="/checkout"
                       variant="primary"
                       size="lg"
-                      disabled
-                      aria-disabled="true"
-                      className="w-full min-h-[48px] text-xs uppercase tracking-[0.16em] opacity-80 cursor-not-allowed"
+                      className="w-full min-h-[48px] text-xs uppercase tracking-[0.16em]"
                     >
-                      <span>Checkout</span>
+                      <span>Proceed to Checkout</span>
+                      <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
                     </Button>
-                    <p className="text-[11px] text-muted-foreground text-center font-sans">
-                      Online checkout will be available in an upcoming release.
-                    </p>
                   </div>
 
                   {/* Secondary Studio Link */}

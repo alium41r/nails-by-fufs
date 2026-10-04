@@ -1,21 +1,17 @@
-import React from "react";
+import type { Metadata } from "next";
 import { Shell } from "@/components/layout/Shell";
-import { Container } from "@/components/layout/Container";
-import { SectionHeading } from "@/components/ui/SectionHeading";
+import { CheckoutContent } from "./checkout-content";
+
+export const metadata: Metadata = {
+  title: "Checkout — Nails by Fufs",
+  description: "Enter your contact and delivery details to complete your Nails by Fufs order.",
+  robots: { index: false, follow: false },
+};
 
 export default function CheckoutPage() {
   return (
     <Shell>
-      <div className="flex-1 flex items-center justify-center py-20 sm:py-28">
-        <Container size="narrow" className="text-center">
-          <SectionHeading
-            eyebrow="/checkout"
-            title="Checkout"
-            subtitle="Placeholder route for navigation and theme verification."
-            align="center"
-          />
-        </Container>
-      </div>
+      <CheckoutContent />
     </Shell>
   );
 }

@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import {
   APPOINTMENT_SERVICES,
   INITIAL_APPOINTMENT_STATE,
-  submitAppointmentRequest,
   type AppointmentFormState,
 } from "@/data/appointment";
+import { submitAppointmentRequest } from "@/app/book-appointment/actions";
 import { businessDetails } from "@/config/business";
 import { CalendarCheck, MapPin, AlertCircle, RotateCcw, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,11 @@ export function AppointmentForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Idempotency key for this form session: reused across retries so a double
+  // click or a lost response cannot create a second request. Cleared when the
+  // customer starts another request.
+  const requestTokenRef = useRef<string | null>(null);
 
   const locality = businessDetails.addressLines.join(", ");
 
@@ -81,7 +86,11 @@ export function AppointmentForm() {
 
     setIsSubmitting(true);
     try {
-      const result = await submitAppointmentRequest(formData);
+      requestTokenRef.current ??= crypto.randomUUID();
+      const result = await submitAppointmentRequest({
+        ...formData,
+        requestToken: requestTokenRef.current,
+      });
       if (!result.ok) {
         const { form, ...fieldErrors } = result.errors;
         setErrors((prev) => ({ ...prev, ...(fieldErrors as Record<string, string>) }));
@@ -104,6 +113,7 @@ export function AppointmentForm() {
     setErrors({});
     setSubmitError(null);
     setIsSubmitted(false);
+    requestTokenRef.current = null;
   };
 
   if (isSubmitted) {

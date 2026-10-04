@@ -69,21 +69,10 @@ export type AppointmentResult =
   | { ok: false; errors: Partial<Record<keyof AppointmentFormState | "form", string>> };
 
 /**
- * Submission adapter. The backend agent should replace the body of this
- * function (server action / fetch) and keep the signature.
+ * The submit adapter now lives in the server action
+ * `src/app/book-appointment/actions.ts` (`submitAppointmentRequest`), which
+ * validates the payload server-side and stores the request in Supabase.
+ *
+ * This module stays the shared UI contract: option ids, form state, initial
+ * state, and the result shape the form renders.
  */
-export async function submitAppointmentRequest(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _data: AppointmentFormState,
-): Promise<AppointmentResult> {
-  // TODO(backend): send `_data` to the booking endpoint.
-  if (process.env.NODE_ENV !== "production") {
-    // Preview only, so the request-received state can be reviewed locally.
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    return { ok: true };
-  }
-  return {
-    ok: false,
-    errors: { form: "Online booking requests aren't connected yet. Please contact the studio directly." },
-  };
-}

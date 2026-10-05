@@ -173,3 +173,133 @@ export function StudioSwitch({
     </label>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Plain-content form controls                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Sentence-case controls for the Studio content panel.
+ *
+ * The existing exports above are the catalogue editor's monospace field set,
+ * which suits a dense product form but is the wrong voice for editing prose on a
+ * homepage. These are the same shapes as the Control Center's controls, kept
+ * local so the Studio bundle does not pull in the admin UI module.
+ */
+
+export function ContentField({
+  label,
+  hint,
+  htmlFor,
+  optional = false,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  htmlFor?: string;
+  optional?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={htmlFor} className="flex items-baseline gap-2 text-[13px] font-medium text-foreground">
+        {label}
+        {optional && <span className="text-[11px] font-normal text-muted-foreground">optional</span>}
+      </label>
+      {hint && <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+const contentInput =
+  "w-full rounded-md border border-border bg-background px-3 text-sm text-foreground " +
+  "placeholder:text-muted-foreground/60 transition-colors focus-visible:border-accent " +
+  "focus-visible:ring-2 focus-visible:ring-accent/20 focus-visible:outline-none";
+
+export function ContentInput({
+  className,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={cn(contentInput, "h-10", className)} />;
+}
+
+export function ContentTextArea({
+  className,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className={cn(contentInput, "resize-y py-2.5 leading-relaxed", className)}
+    />
+  );
+}
+
+export function ContentSelect({
+  className,
+  children,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select {...props} className={cn(contentInput, "h-10 cursor-pointer pr-8", className)}>
+      {children}
+    </select>
+  );
+}
+
+/**
+ * A "one entry per row" list.
+ *
+ * The stored shape is an array of strings, which is how `intro` paragraphs and
+ * `included` items work. Shown as a stack of single-line inputs with remove and
+ * add, because a textarea would hide the one-per-row contract and make an
+ * accidental blank line look like a deliberate empty item.
+ */
+export function ContentStringList({
+  values,
+  onChange,
+  placeholder,
+  addLabel,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  addLabel: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {values.map((value, index) => (
+        <div key={index} className="flex items-start gap-2">
+          <ContentTextArea
+            value={value}
+            rows={2}
+            placeholder={placeholder}
+            aria-label={`${addLabel} ${index + 1}`}
+            onChange={(event) => {
+              const next = [...values];
+              next[index] = event.target.value;
+              onChange(next);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => onChange(values.filter((_, position) => position !== index))}
+            className="mt-1 shrink-0 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-rose-600 dark:hover:text-rose-400"
+            aria-label={`Remove ${addLabel.toLowerCase()} ${index + 1}`}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={() => onChange([...values, ""])}
+        className="self-start rounded-md border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-accent/50 hover:text-accent"
+      >
+        + Add {addLabel.toLowerCase()}
+      </button>
+    </div>
+  );
+}

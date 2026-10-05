@@ -44,9 +44,16 @@ node scripts/checks/restore-seeded-content.mjs --check   # report, changes nothi
 node scripts/checks/restore-seeded-content.mjs --all     # repair from the seed
 ```
 
-`content.e2e.test.ts` also refuses to start on a blanked announcement or a
-non-shipped default currency, and names this command, so the failure is explicit
-rather than silent.
+`content.e2e.test.ts` also heals the two fields a killed run can damage, before
+adopting its baseline: a blank announcement message is rewritten with the wording
+the storefront already falls back to, and a non-shipped default currency is reset
+to the value the migration seeds. It logs what it healed.
+
+That healing replaces an earlier guard which *threw* on the same conditions. That
+guard was worse than the problem: an exception in `beforeAll` prevents `afterAll`
+from running, so the damaged snapshot it was refusing to work with was never
+restored and every later run re-adopted it. A guard that blocks the repair it asks
+for is a deadlock.
 
 Note that `supabase db query -f supabase/migrations/…site_content.sql` does **not**
 fix this: the seed uses `on conflict (key) do nothing` on purpose, so that

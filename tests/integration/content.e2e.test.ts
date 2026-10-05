@@ -173,44 +173,61 @@ beforeAll(async () => {
   baseline = await capture();
 
   /*
-   * Refuse to run on a database the previous run damaged.
+   * Heal a baseline the previous run damaged, before adopting it.
    *
-   * These suites capture the catalogue and content at the start and write them
-   * back at the end. That is what makes them non-destructive — and it means a run
-   * that is *killed* mid-flight (timeout, Ctrl-C, dropped connection) leaves the
-   * snapshot it is restoring on the next run as the damaged state, so the damage
-   * becomes sticky and each later run faithfully preserves it.
+   * These suites capture the catalogue and `site_content` at the start and write
+   * them back at the end, which is what makes them non-destructive. The
+   * consequence is that a run killed mid-flight (timeout, Ctrl-C, dropped
+   * connection) leaves its *current* state in place, so the next run captures the
+   * damage as its baseline and faithfully preserves it.
    *
-   * That happened once: `site.announcement` was left blanked and the default
-   * currency left as a test value. The storefront falls back to the code defaults,
-   * so nothing looked broken — the stored rows had simply drifted from the seed.
+   * The first attempt at guarding this threw an error here — which was worse than
+   * the disease: an exception in `beforeAll` prevents `afterAll` from running, so
+   * the damaged snapshot was never restored and every later run kept re-adopting
+   * it. A guard that blocks the repair it is asking for is a deadlock.
    *
-   * So the baseline is checked for the two shapes a killed run leaves behind, and
-   * the suite fails with the fix rather than capturing them as "correct".
-   * `scripts/checks/restore-seeded-content.mjs` repairs them from the seed.
+   * So the baseline is healed instead of refused. Only two fields can be damaged
+   * this way and both have an unambiguous intended value: the announcement text
+   * must be non-empty, and the default currency is shipped as USD. Nothing is
+   * invented — an empty announcement falls back to the wording the storefront
+   * already displays, and the currency is the value the migration seeds.
+   *
+   * `scripts/checks/restore-seeded-content.mjs` is still the general-purpose
+   * repair, and `--check` reports deeper drift that this does not cover.
    */
-  const announcementText = String(
-    (baseline.content.find((row) => row.key === "site.announcement")?.value as
-      | { text?: string }
-      | undefined)?.text ?? "",
-  );
-  const currencyDefault = String(
-    (baseline.content.find((row) => row.key === "site.currency")?.value as
-      | { default?: string }
-      | undefined)?.default ?? "",
-  );
+  const contentRow = (key: string) => baseline.content.find((row) => row.key === key);
+  const healed: string[] = [];
 
-  if (announcementText.trim().length === 0) {
-    throw new Error(
-      "site_content.site.announcement.text is empty — a previous run was killed before it " +
-        "restored. Repair it first: node scripts/checks/restore-seeded-content.mjs site.announcement",
-    );
+  const announcement = contentRow("site.announcement");
+  if (announcement && typeof announcement.value === "object" && announcement.value !== null) {
+    const asRecord = announcement.value as { text?: string };
+    if (String(asRecord.text ?? "").trim().length === 0) {
+      // The storefront's own fallback, written back so the snapshot is usable.
+      asRecord.text = DEFAULT_SITE_CONTENT.announcement.text;
+      await sql(
+        `update site_content set value = jsonb_set(value, '{text}', to_jsonb($1::text)) where key = 'site.announcement'`,
+        [asRecord.text],
+      );
+      healed.push("site.announcement.text");
+    }
   }
-  if (currencyDefault !== "USD") {
-    throw new Error(
-      `site_content.site.currency.default is "${currencyDefault}" but the seed ships "USD" — ` +
-        "a previous run was killed before it restored. Repair it first: " +
-        "node scripts/checks/restore-seeded-content.mjs site.currency",
+
+  const currency = contentRow("site.currency");
+  if (currency && typeof currency.value === "object" && currency.value !== null) {
+    const asRecord = currency.value as { default?: string };
+    if (asRecord.default !== DEFAULT_SITE_CONTENT.currency.default) {
+      asRecord.default = DEFAULT_SITE_CONTENT.currency.default;
+      await sql(`update site_content set value = $1::jsonb where key = 'site.currency'`, [
+        JSON.stringify(asRecord),
+      ]);
+      healed.push("site.currency.default");
+    }
+  }
+
+  if (healed.length > 0) {
+    console.warn(
+      `[e2e] healed a damaged baseline left by an earlier run: ${healed.join(", ")}. ` +
+        "Run `npm run db:content:check` to see whether anything else has drifted.",
     );
   }
 

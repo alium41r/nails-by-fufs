@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { siteConfig } from "@/config/site";
+import type { NavItem, SiteIdentity } from "@/lib/site-content-schema";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,9 +11,20 @@ import { cn } from "@/lib/utils";
 interface MobileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  identity: SiteIdentity;
+  /**
+   * The drawer's navigation, owner-managed.
+   *
+   * This component used to declare its own nine-item `drawerLinks` array and
+   * ignore the shared config entirely, so the mobile menu silently disagreed with
+   * the desktop one. It now renders the `site.nav.mobile` document — the same list
+   * the config had, promoted to something the owner controls — and keeps its own
+   * extra three items there rather than in code.
+   */
+  nav: NavItem[];
 }
 
-export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
+export function MobileDrawer({ isOpen, onClose, identity, nav }: MobileDrawerProps) {
   const pathname = usePathname();
   const router = useRouter();
   const prevPathname = useRef(pathname);
@@ -53,18 +64,6 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
 
   if (!isOpen) return null;
 
-  const drawerLinks = [
-    { label: "Shop", href: "/shop" },
-    { label: "Collections", href: "/collections" },
-    { label: "Custom", href: "/custom" },
-    { label: "Book Appointment", href: "/book-appointment" },
-    { label: "How It Works", href: "/how-it-works" },
-    { label: "Size Guide", href: "/size-guide" },
-    { label: "About", href: "/about" },
-    { label: "FAQ", href: "/faq" },
-    { label: "Contact", href: "/contact" },
-  ];
-
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
       {/* Backdrop */}
@@ -94,7 +93,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
                 pathname === "/" ? "text-accent" : "text-foreground"
               )}
             >
-              {siteConfig.name.toUpperCase()}
+              {identity.name.toUpperCase()}
             </span>
           </Link>
           <button
@@ -158,11 +157,11 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
 
           {/* Drawer Navigation Links */}
           <nav className="flex flex-col gap-1" aria-label="Mobile Navigation">
-            {drawerLinks.map((item) => {
+            {nav.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
-                  key={item.href}
+                  key={item.key}
                   href={item.href}
                   onClick={onClose}
                   className={cn(
@@ -184,7 +183,7 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
           <ThemeToggle variant="pill" className="w-full justify-between" />
 
           <p className="text-[11px] text-muted-foreground tracking-wider uppercase">
-            Bespoke Press-On Nail Studio
+            {identity.mobileTagline}
           </p>
         </div>
       </div>

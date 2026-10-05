@@ -125,3 +125,77 @@ html[data-studio-active="true"] header.sticky {
   }
 }
 
+
+/* --------------------------------------------------------------------------
+   Admin (Studio Control Center) surface.
+
+   The admin shares the storefront's brand tokens — same accent, same typefaces —
+   but not its *ground*. The storefront's warm pink background and serif display
+   face are an editorial choice, right for a shop window and wrong for a workspace:
+   they reduce contrast for small text and read as decoration on a screen whose job
+   is dense, repeated reading.
+
+   These overrides are scoped to `.admin-shell` so nothing here can reach a
+   customer-facing page. The admin keeps the accent for emphasis and for the one
+   thing that deserves it — outstanding work — and uses a neutral ground and the
+   sans face for everything else.
+
+   `--background` and `--surface` are re-pointed rather than every utility being
+   rewritten, so every existing `bg-background` / `bg-surface` inside the admin
+   picks these up automatically.
+   -------------------------------------------------------------------------- */
+/*
+ * Specificity note, because it is easy to get wrong here.
+ *
+ * The theme is applied as a `dark` class on `<html>`, so `.dark { --background }`
+ * matches an *ancestor* of the admin shell. A bare `.admin-shell { --background }`
+ * has lower specificity than `.dark` for that reason — `class` counts once for
+ * `.dark` and once for `.admin-shell`, but `.dark` is declared later in the
+ * cascade and wins. The result was an admin that stayed dark in light mode.
+ *
+ * Both selectors are therefore qualified by a `html` ancestor so they beat `.dark`
+ * (two classes versus one), and the dark override comes last so it wins when both
+ * apply.
+ */
+html .admin-shell {
+  --background: #FBFAFA;
+  --surface: #FFFFFF;
+  --surface-subtle: #F4F2F3;
+  --border: #E4E0E2;
+  --border-subtle: #EFECEE;
+  --muted-foreground: #6F6669;
+
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+html .dark .admin-shell,
+html.dark .admin-shell {
+  --background: #161415;
+  --surface: #1E1B1D;
+  --surface-subtle: #262224;
+  --border: #332E30;
+  --border-subtle: #2A2628;
+  --muted-foreground: #A29A9D;
+
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/*
+ * Headings in the admin use the sans face.
+ *
+ * The storefront's serif display face is reserved for the wordmark, where it is
+ * the brand. A serif page title in a management screen reads as decorative and
+ * adds a second texture to every heading.
+ */
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3 {
+  font-family: var(--font-sans);
+}
+
+/* The wordmark keeps the display face, since that is the identity. */
+.admin-shell .font-display {
+  font-family: var(--font-display);
+}

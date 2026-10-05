@@ -103,6 +103,46 @@ export async function updateProductAction(formData: FormData) {
 
   const core = toProductCore(raw);
 
+  /*
+   * Which collection the product sits in.
+   *
+   * The field is optional so this stays compatible with any older form: an absent
+   * key leaves the collection untouched, while an empty string means "no
+   * collection" — the two are genuinely different and are treated as such.
+   *
+   * A destination is checked before it is written: it must exist and must not be
+   * archived, because a product filed into an archived collection would be
+   * silently hidden from the storefront and look like a broken publish.
+   */
+  const collectionField = formData.get("collection_id");
+  let collectionId: string | null | undefined;
+  if (collectionField !== null) {
+    const value = String(collectionField).trim();
+    if (value === "") {
+      collectionId = null;
+    } else if (!isUuid(value)) {
+      redirect(`/admin/products/${id}?error=${encodeURIComponent("That collection is not valid.")}`);
+    } else {
+      const destination = await getPrisma().collections.findUnique({
+        where: { id: value },
+        select: { title: true, archived_at: true },
+      });
+      if (!destination) {
+        redirect(
+          `/admin/products/${id}?error=${encodeURIComponent("That collection no longer exists.")}`,
+        );
+      }
+      if (destination.archived_at) {
+        redirect(
+          `/admin/products/${id}?error=${encodeURIComponent(
+            `“${destination.title}” is archived, so its products stay hidden. Restore it first, or choose another collection.`,
+          )}`,
+        );
+      }
+      collectionId = value;
+    }
+  }
+
   try {
     await getPrisma().products.update({
       where: { id },
@@ -117,6 +157,7 @@ export async function updateProductAction(formData: FormData) {
         tag: core.tag,
         display_order: core.displayOrder,
         included: core.included,
+        ...(collectionId === undefined ? {} : { collection_id: collectionId }),
       },
     });
   } catch (error) {

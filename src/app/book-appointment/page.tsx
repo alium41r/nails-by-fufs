@@ -4,7 +4,7 @@ import { Shell } from "@/components/layout/Shell";
 import { Container } from "@/components/layout/Container";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { AppointmentForm } from "@/components/appointment/AppointmentForm";
-import { businessDetails } from "@/config/business";
+import { getSiteContent } from "@/lib/site-content";
 import { Hand, MapPin, CalendarCheck } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -31,8 +31,13 @@ const steps = [
   },
 ];
 
-export default function BookAppointmentPage() {
-  const locality = businessDetails.addressLines.join(", ");
+/**
+ * The locality shown here is owner-managed (`site.contact`), read on the server
+ * and handed to the form as a prop.
+ */
+export default async function BookAppointmentPage() {
+  const { contact } = await getSiteContent();
+  const locality = contact.addressLines.join(", ");
 
   return (
     <Shell>
@@ -78,7 +83,7 @@ export default function BookAppointmentPage() {
             </div>
 
             <div className="w-full">
-              <AppointmentForm />
+              <AppointmentForm locality={locality} />
             </div>
           </div>
         </Container>

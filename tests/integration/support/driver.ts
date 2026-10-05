@@ -20,6 +20,31 @@ import {
 } from "./next-cache";
 
 import {
+  saveContentDocument,
+  saveContentDocuments,
+  resetContentDocumentAction,
+  saveStoreSettings,
+  prepareSiteImageUpload,
+  finalizeSiteImageUpload,
+  clearSiteImage,
+} from "@/app/admin/content-actions";
+import {
+  createProduct,
+  duplicateProduct,
+  archiveProduct,
+  restoreProduct,
+  deleteProduct,
+  createCollection,
+  archiveCollection,
+  restoreCollection,
+  reassignCollectionProducts,
+  deleteCollection,
+  reorderProducts,
+  reorderCollections,
+  bulkUpdateProducts,
+  bulkUpdateCollections,
+} from "@/app/admin/catalogue-lifecycle-actions";
+import {
   loadStudioState,
   saveStudioProduct,
   saveStudioCollection,
@@ -47,6 +72,38 @@ export const actions = {
   prepareStudioCoverUpload,
   finalizeStudioCoverUpload,
   removeStudioCover,
+
+  // Owner-managed storefront content and store settings.
+  saveContentDocument,
+  saveContentDocuments,
+  resetContentDocumentAction,
+  saveStoreSettings,
+  prepareSiteImageUpload,
+  finalizeSiteImageUpload,
+  clearSiteImage,
+
+  // Catalogue lifecycle: create, duplicate, archive, restore, delete, reorder,
+  // and the bulk operations.
+  createProduct,
+  duplicateProduct,
+  archiveProduct,
+  restoreProduct,
+  deleteProduct,
+  createCollection,
+  archiveCollection,
+  restoreCollection,
+  reassignCollectionProducts,
+  deleteCollection,
+  reorderProducts,
+  reorderCollections,
+  bulkUpdateProducts,
+  bulkUpdateCollections,
 };
 
-export { setCookieJar, clearRevalidated, revalidatedPaths, revalidatedTags, revalidatedUpdates };
+export {
+  setCookieJar,
+  clearRevalidated,
+  revalidatedPaths,
+  revalidatedTags,
+  revalidatedUpdates,
+};

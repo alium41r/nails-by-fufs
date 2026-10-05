@@ -42,7 +42,14 @@ afterAll(async () => {
 describe("anonymous access to privileged surfaces", () => {
   const protectedPaths = [
     "/admin",
+    // The catalogue moved to its own route when the overview became a dashboard;
+    // an admin route that is not in this list is one whose gate is unverified.
+    "/admin/catalogue",
+    "/admin/content",
     "/admin/products",
+    // A static segment alongside the dynamic `[id]` route: it must resolve to the
+    // creation form for an admin and to the login redirect for everyone else.
+    "/admin/products/new",
     "/admin/custom-orders",
     "/admin/appointments",
     "/admin/orders",

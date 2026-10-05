@@ -8,6 +8,7 @@ import type {
   StudioCollectionManagement,
   StudioProductManagement,
 } from "@/lib/admin/studio-management";
+import { FALLBACK_CURRENCY, pricePlaceholder } from "@/lib/currency";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/admin/paths";
 import type {
   CollectionDraft,
@@ -17,7 +18,16 @@ import type {
   StudioImage,
 } from "./types";
 
-export const PRICE_PLACEHOLDER = "$XX";
+/**
+ * The storefront's no-price marker.
+ *
+ * Kept as a named constant here because the Studio editor compares against it to
+ * decide whether a field is "unpriced", but its *value* now comes from
+ * `@/lib/currency`, which derives it from the store's configured default
+ * currency. As a literal `"$XX"` it was a dollar sign hardcoded into a store that
+ * prices in rupees.
+ */
+export const PRICE_PLACEHOLDER = pricePlaceholder(FALLBACK_CURRENCY);
 
 /**
  * Revokes a locally created object URL.
@@ -47,7 +57,7 @@ export function isBlobUrl(value: unknown): value is string {
  */
 export function parsePrice(
   input: string,
-  fallbackCurrency = "USD"
+  fallbackCurrency: string = FALLBACK_CURRENCY
 ): { priceMinor: number | null; currency: string } {
   const trimmed = input.trim();
   if (!trimmed || trimmed === PRICE_PLACEHOLDER) {

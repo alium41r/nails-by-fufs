@@ -45,6 +45,8 @@ export function useStudio() {
       studioStore.openPanel({ type: "collection", slug, focusField }),
     openImageManager: (productId: string, focusField?: string) =>
       studioStore.openPanel({ type: "images", productId, focusField }),
+    openContentEditor: (key: string, focusField?: string) =>
+      studioStore.openPanel({ type: "content", key, focusField }),
     patchProduct: (id: string, patch: Parameters<typeof studioStore.patchProductDraft>[1]) =>
       studioStore.patchProductDraft(id, patch),
     resetProduct: (id: string) => studioStore.resetProductDraft(id),

@@ -55,18 +55,31 @@ function imageRow(overrides: Partial<ProductImageRow> = {}): ProductImageRow {
 /* -------------------------------------------------------------------------- */
 
 describe("public visibility contract", () => {
-  it("only exposes active collections", () => {
-    expect(PUBLIC_COLLECTION_FILTER).toEqual({ is_active: true });
+  it("only exposes active, unarchived collections", () => {
+    expect(PUBLIC_COLLECTION_FILTER).toEqual({ is_active: true, archived_at: null });
   });
 
-  it("requires an active product AND an active parent collection", () => {
+  it("requires a published product in a published parent collection", () => {
     // The privilege boundary that replaces RLS for this connection. If this
-    // filter is ever weakened, an inactive product or a product inside an
-    // inactive collection would leak to the storefront.
+    // filter is ever weakened, an unpublished product, an archived product, or a
+    // product inside a hidden collection would leak to the storefront.
+    //
+    // Archiving is enforced *only* here: `archived_at` has no RLS policy, because
+    // RLS cannot express "invisible to clients but listable by the admin through
+    // the same privileged connection".
     expect(PUBLIC_PRODUCT_FILTER).toEqual({
       is_active: true,
-      collections: { is_active: true },
+      archived_at: null,
+      collections: { is: { is_active: true, archived_at: null } },
     });
+  });
+
+  it("does not publish a product with no collection", () => {
+    // `collection_id` became nullable so a product can exist before it is filed.
+    // The relation filter must treat "no collection" as "not published" rather
+    // than throwing or passing it through.
+    const filter = PUBLIC_PRODUCT_FILTER.collections as { is: { is_active: boolean } };
+    expect(filter.is.is_active).toBe(true);
   });
 });
 

@@ -1,15 +1,35 @@
 "use client";
 
 import React, { useState } from "react";
-import { FaqItem, FaqCategory, faqCategories, faqItems } from "@/data/faq";
+import type { FaqCategoryContent, FaqItemContent } from "@/lib/site-content-schema";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function FaqAccordion() {
-  const [selectedCategory, setSelectedCategory] = useState<FaqCategory["id"]>("all");
-  const [openItems, setOpenItems] = useState<Record<string, boolean>>({
-    "faq-1": true, // First item open by default for immediate affordance
-  });
+/**
+ * The FAQ list.
+ *
+ * Items, categories and the closing note are props now rather than a module
+ * import, because they are owner-managed (`page.faq`). The category ids are no
+ * longer a closed TypeScript union either: an owner can add a category, so the
+ * filter compares ids as strings.
+ *
+ * The first item still opens by default, keyed on whichever item is first rather
+ * than the literal `"faq-1"` — the old hardcoded id meant renaming an item in the
+ * database silently lost the default-open behaviour.
+ */
+export function FaqAccordion({
+  items,
+  categories,
+  footerNote,
+}: {
+  items: FaqItemContent[];
+  categories: FaqCategoryContent[];
+  footerNote: string;
+}) {
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [openItems, setOpenItems] = useState<Record<string, boolean>>(() =>
+    items.length > 0 ? { [items[0].id]: true } : {},
+  );
 
   const toggleItem = (id: string) => {
     setOpenItems((prev) => ({
@@ -18,7 +38,7 @@ export function FaqAccordion() {
     }));
   };
 
-  const filteredItems = faqItems.filter((item) => {
+  const filteredItems = items.filter((item) => {
     if (selectedCategory === "all") return true;
     return item.category === selectedCategory;
   });
@@ -31,7 +51,7 @@ export function FaqAccordion() {
         role="tablist"
         aria-label="FAQ Categories"
       >
-        {faqCategories.map((cat) => {
+        {categories.map((cat) => {
           const isSelected = selectedCategory === cat.id;
           return (
             <button
@@ -55,7 +75,7 @@ export function FaqAccordion() {
 
       {/* Accordion Item List */}
       <div className="flex flex-col divide-y divide-border border-y border-border">
-        {filteredItems.map((item: FaqItem) => {
+        {filteredItems.map((item) => {
           const isOpen = !!openItems[item.id];
           const contentId = `faq-content-${item.id}`;
           const headerId = `faq-header-${item.id}`;
@@ -104,7 +124,7 @@ export function FaqAccordion() {
       {/* Subtle Studio Note */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
         <Sparkles className="h-3.5 w-3.5 text-accent shrink-0" />
-        <span>Each set is individually crafted. Don&apos;t hesitate to contact us if your question isn&apos;t covered above.</span>
+        <span>{footerNote}</span>
       </div>
     </div>
   );

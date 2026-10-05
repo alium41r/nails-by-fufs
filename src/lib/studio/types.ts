@@ -42,7 +42,14 @@ export interface StudioImage {
 export type StudioPanelTarget =
   | { type: "product"; id: string; focusField?: string }
   | { type: "collection"; slug: string; focusField?: string }
-  | { type: "images"; productId: string; focusField?: string };
+  | { type: "images"; productId: string; focusField?: string }
+  /**
+   * An owner-managed `site_content` document, addressed by its dotted key.
+   *
+   * Kept in the same union as the catalogue targets so the panel, the overlay
+   * tracker and the "close editor" flow need no second mechanism.
+   */
+  | { type: "content"; key: string; focusField?: string };
 
 export interface StudioState {
   isActive: boolean;

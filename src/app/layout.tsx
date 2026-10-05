@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Plus_Jakarta_Sans } from "next/font/google";
+import { DEFAULT_IDENTITY } from "@/lib/site-content-schema";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { CartProvider } from "@/providers/CartProvider";
 import "./globals.css";
@@ -24,10 +25,26 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
+/**
+ * Site-wide metadata fallback.
+ *
+ * Deliberately a plain `export const` rather than `generateMetadata()` reading the
+ * owner's identity document, and that is a correctness decision rather than a
+ * caching one: a layout that exports `generateMetadata` takes part in Next's
+ * metadata *resolution*, while a static layout export does not. Converting this
+ * to `generateMetadata` made every page inherit the site-wide title and
+ * description, silently replacing each page's own `<title>` — a change no
+ * customer asked for and one that would have hurt search results.
+ *
+ * So the site-wide values stay static here, and the values come from
+ * `DEFAULT_IDENTITY` — the same object the `site.identity` document was seeded
+ * from — which keeps the two from drifting. Per-page titles remain with their
+ * page, and the homepage's own title stays content-driven in `src/app/page.tsx`,
+ * where a page-level `generateMetadata` legitimately overrides this.
+ */
 export const metadata: Metadata = {
-  title: "Nails by Fufs — Bespoke Press-On Nails & Nail Artistry",
-  description:
-    "Handcrafted, reusable press-on nails and custom nail artistry by Fufs, designed with intentional form, tactile textures, and refined aesthetic.",
+  title: DEFAULT_IDENTITY.metaTitle,
+  description: DEFAULT_IDENTITY.metaDescription,
 };
 
 export default function RootLayout({

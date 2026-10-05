@@ -10,7 +10,6 @@ import {
   type AppointmentFormState,
 } from "@/data/appointment";
 import { submitAppointmentRequest } from "@/app/book-appointment/actions";
-import { businessDetails } from "@/config/business";
 import { CalendarCheck, MapPin, AlertCircle, RotateCcw, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +30,15 @@ const formatDate = (iso: string) => {
   });
 };
 
-export function AppointmentForm() {
+/**
+ * `locality` is passed in rather than imported.
+ *
+ * It comes from the owner-managed `site.contact` document, and this is a Client
+ * Component, so it cannot read that itself. Before this it imported the
+ * hardcoded `@/config/business`, which meant the studio's published locality
+ * changed in the admin everywhere except here.
+ */
+export function AppointmentForm({ locality }: { locality: string }) {
   const [formData, setFormData] = useState<AppointmentFormState>(INITIAL_APPOINTMENT_STATE);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,8 +49,6 @@ export function AppointmentForm() {
   // click or a lost response cannot create a second request. Cleared when the
   // customer starts another request.
   const requestTokenRef = useRef<string | null>(null);
-
-  const locality = businessDetails.addressLines.join(", ");
 
   const handleChange = (field: keyof AppointmentFormState, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

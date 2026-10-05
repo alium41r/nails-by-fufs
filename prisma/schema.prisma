@@ -23,9 +23,13 @@ model collections {
   cover_image_path String?
   created_at       DateTime   @default(now()) @db.Timestamptz(6)
   updated_at       DateTime   @default(now()) @db.Timestamptz(6)
+  archived_at      DateTime?  @db.Timestamptz(6)
+  archive_note     String?
   products         products[]
 
   @@index([is_active], where: raw("(is_active = true)"))
+  @@index([archived_at(sort: Desc)], map: "collections_archived_idx", where: raw("(archived_at IS NOT NULL)"))
+  @@index([display_order, slug], map: "collections_not_archived_idx", where: raw("(archived_at IS NULL)"))
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -47,7 +51,7 @@ model product_images {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model products {
   id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  collection_id  String          @db.Uuid
+  collection_id  String?         @db.Uuid
   slug           String          @unique
   name           String
   descriptor     String          @default("")
@@ -64,12 +68,16 @@ model products {
   currency       String?         @db.Char(3)
   created_at     DateTime        @default(now()) @db.Timestamptz(6)
   updated_at     DateTime        @default(now()) @db.Timestamptz(6)
+  archived_at    DateTime?       @db.Timestamptz(6)
+  archive_note   String?
   order_items    order_items[]
   product_images product_images?
-  collections    collections     @relation(fields: [collection_id], references: [id], onUpdate: NoAction)
+  collections    collections?    @relation(fields: [collection_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([collection_id])
   @@index([is_active], where: raw("(is_active = true)"))
+  @@index([display_order, slug], map: "products_active_not_archived_idx", where: raw("(is_active AND (archived_at IS NULL))"))
+  @@index([archived_at(sort: Desc)], map: "products_archived_idx", where: raw("(archived_at IS NOT NULL)"))
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -197,4 +205,15 @@ model rate_limit_counters {
 
   @@id([key, window_start])
   @@index([window_start])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model site_content {
+  key        String   @id
+  value_type String
+  value      Json
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
 }

@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { finalizeCollectionCoverUpload, prepareCollectionCoverUpload } from "@/app/admin/actions";
-import { Button } from "@/components/ui/Button";
+import { AdminButton } from "@/components/admin/ui/controls";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/heic,image/gif";
 
@@ -75,25 +75,27 @@ export function CollectionCoverUploader({ collectionId }: { collectionId: string
         }}
       />
 
-      <Button
+      <AdminButton
         type="button"
-        variant="outline"
-        size="sm"
-        isLoading={isBusy}
+        variant="primary"
+        disabled={isBusy}
         onClick={() => inputRef.current?.click()}
-        className="w-full text-[11px]"
       >
-        {isBusy ? "Uploading..." : "Upload Cover Image"}
-      </Button>
+        {isBusy ? "Uploading…" : "Upload cover"}
+      </AdminButton>
 
-      {done && <p className="text-[11px] text-accent">Cover image updated.</p>}
+      {done && (
+        <p role="status" className="text-[13px] text-emerald-700 dark:text-emerald-400">
+          Cover photo updated.
+        </p>
+      )}
       {error && (
-        <p role="alert" className="text-[11px] text-rose-600 dark:text-rose-400">
+        <p role="alert" className="text-[13px] text-rose-600 dark:text-rose-400">
           {error}
         </p>
       )}
-      <p className="text-[10px] text-muted-foreground leading-relaxed">
-        PNG, JPG, WebP, HEIC or GIF · max 10 MB. Uploading a new cover replaces the previous one.
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        PNG, JPG, WebP, HEIC or GIF, up to 10 MB. Uploading a new cover replaces the previous one.
       </p>
     </div>
   );

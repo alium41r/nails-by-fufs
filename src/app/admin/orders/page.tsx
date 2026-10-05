@@ -2,19 +2,37 @@ import Link from "next/link";
 
 import { requireAdmin } from "@/lib/admin/auth";
 import { getPrisma } from "@/lib/prisma/db";
+import { AdminEmptyState, AdminPageHeader, StatusPill } from "@/components/admin/ui/primitives";
 
 export const dynamic = "force-dynamic";
 
-const fmt = (value: Date) => value.toISOString().slice(0, 16).replace("T", " ");
+export const metadata = {
+  title: "Orders — Studio Control Center",
+  robots: { index: false, follow: false },
+};
+
 const money = (minor: number, currency: string) => `${currency} ${(minor / 100).toFixed(2)}`;
 
+const readable = (value: Date) =>
+  value.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
 /**
- * Read-only order view.
+ * Orders — read-only, and unapologetically so.
  *
- * Orders carry authoritative snapshots written at checkout, so this page only
- * displays them. There are deliberately no status or fulfillment actions: the
- * real lifecycle is defined by B6/PayFast, and `pending_payment` is currently the
- * only technical state. Nothing here can move money or an order.
+ * ## What changed
+ *
+ * The previous page opened with a three-line bordered paragraph explaining
+ * `pending_payment`, snapshots and B6/PayFast. That is accurate but it is
+ * engineering documentation, and it was the first thing on the screen. The same
+ * facts are now one short line, and the detail is in a disclosure for whoever
+ * wants it.
+ *
+ * ## Why each order is collapsed
+ *
+ * An order is a receipt. The owner needs the total, the date, the status and the
+ * items; the per-item snapshot detail matters only when reconciling a specific
+ * order. Each order is a native `<details>`, so the page lists all orders compactly
+ * and any one can be opened — no client JavaScript, and it works before hydration.
  */
 export default async function AdminOrdersPage() {
   await requireAdmin("/admin/orders");
@@ -36,13 +54,10 @@ export default async function AdminOrdersPage() {
           id: true,
           product_name: true,
           product_slug: true,
-          product_descriptor: true,
-          product_shape: true,
-          product_finish: true,
-          collection_slug: true,
-          selected_size: true,
           selected_size_label: true,
           selected_length: true,
+          product_shape: true,
+          product_finish: true,
           unit_price_minor: true,
           currency: true,
           quantity: true,
@@ -53,74 +68,103 @@ export default async function AdminOrdersPage() {
   });
 
   return (
-    <div className="flex flex-col gap-8 max-w-4xl">
-      <div className="flex flex-col gap-2">
-        <Link href="/admin" className="text-[11px] text-muted-foreground hover:text-accent">
-          ← Studio Admin
-        </Link>
-        <h1 className="font-display font-light text-3xl text-foreground">Orders</h1>
-        <p className="text-xs text-muted-foreground font-sans">
-          {orders.length} order{orders.length === 1 ? "" : "s"} · read-only
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <AdminPageHeader
+        title="Orders"
+        description="A record of completed checkouts. Nothing here can be changed — each order stores its own copy of what was bought, so editing the catalogue never rewrites past orders."
+        count={`${orders.length} order${orders.length === 1 ? "" : "s"}`}
+      />
 
-      <p className="text-[11px] border border-border bg-surface text-muted-foreground p-3 leading-relaxed">
-        Read-only by design. Payment and fulfilment are not managed here: the lifecycle is defined by B6/PayFast,
-        and the only technical state today is <span className="font-mono">pending_payment</span>. Amounts and item
-        details are the snapshots captured when the order was created, so later catalogue edits never rewrite an
-        existing order.
-      </p>
-
-      {orders.length === 0 && (
-        <div className="border border-border bg-surface p-6 text-xs text-muted-foreground">
-          No orders yet. Orders appear here once checkout is able to complete (B6).
-        </div>
-      )}
-
-      <div className="flex flex-col gap-5">
-        {orders.map((order) => (
-          <section key={order.id} className="border border-border bg-surface">
-            <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-border">
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-sm text-foreground">
-                  {order.order_items.length} item{order.order_items.length === 1 ? "" : "s"} ·{" "}
-                  {money(order.total_minor, order.currency)}
-                </span>
-                <span className="text-[10px] font-mono text-muted-foreground truncate">
-                  {order.id} · placed {fmt(order.created_at)}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-wider">
-                <span className="px-2 py-0.5 border border-border text-muted-foreground">{order.status}</span>
-                <span className="text-muted-foreground">
-                  subtotal {money(order.subtotal_minor, order.currency)}
-                </span>
-              </div>
-            </header>
-
-            <ul className="divide-y divide-border/60">
-              {order.order_items.map((item) => (
-                <li key={item.id} className="px-5 py-3 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-col gap-0.5 min-w-0">
-                    <span className="text-sm text-foreground truncate">{item.product_name}</span>
-                    <span className="text-[10px] font-mono text-muted-foreground truncate">
-                      /{item.product_slug}
-                      {item.collection_slug ? ` · ${item.collection_slug}` : ""} · {item.selected_size_label} ·{" "}
-                      {item.selected_length}
-                      {item.product_shape ? ` · ${item.product_shape}` : ""}
-                      {item.product_finish ? ` · ${item.product_finish}` : ""}
+      {orders.length === 0 ? (
+        <AdminEmptyState
+          title="No orders yet"
+          description="Orders appear here once checkout can complete."
+        />
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {orders.map((order) => (
+            <li key={order.id}>
+              <details className="group overflow-hidden rounded-lg border border-border/70 bg-surface">
+                <summary className="flex cursor-pointer list-none items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-subtle/50">
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-sm font-medium text-foreground">
+                      {money(order.total_minor, order.currency)}
                     </span>
-                  </div>
-                  <span className="text-[11px] font-mono text-muted-foreground">
-                    {item.quantity} × {money(item.unit_price_minor, item.currency)} ={" "}
-                    <span className="text-foreground">{money(item.line_total_minor, item.currency)}</span>
+                    <span className="truncate text-[13px] text-muted-foreground">
+                      {order.order_items.length} item
+                      {order.order_items.length === 1 ? "" : "s"} · {readable(order.created_at)}
+                    </span>
                   </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+
+                  <StatusPill tone="neutral">{order.status.replace(/_/g, " ")}</StatusPill>
+
+                  <span
+                    aria-hidden="true"
+                    className="text-muted-foreground transition-transform group-open:rotate-180"
+                  >
+                    ⌄
+                  </span>
+                </summary>
+
+                <div className="border-t border-border/60">
+                  <ul className="divide-y divide-border/50">
+                    {order.order_items.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3"
+                      >
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <Link
+                            href={`/product/${item.product_slug}`}
+                            className="truncate text-[13px] font-medium text-foreground transition-colors hover:text-accent"
+                          >
+                            {item.product_name}
+                          </Link>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {[
+                              item.selected_size_label,
+                              item.selected_length,
+                              item.product_shape,
+                              item.product_finish,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </span>
+                        <span className="text-[13px] tabular-nums text-muted-foreground">
+                          {item.quantity} × {money(item.unit_price_minor, item.currency)}
+                          <span className="ml-2 text-foreground">
+                            {money(item.line_total_minor, item.currency)}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <dl className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-border/50 px-4 py-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <dt>Subtotal</dt>
+                      <dd className="tabular-nums">
+                        {money(order.subtotal_minor, order.currency)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <dt>Total</dt>
+                      <dd className="tabular-nums text-foreground">
+                        {money(order.total_minor, order.currency)}
+                      </dd>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <dt>Reference</dt>
+                      <dd className="truncate font-mono">{order.order_token}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

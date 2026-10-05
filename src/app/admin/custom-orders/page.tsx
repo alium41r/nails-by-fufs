@@ -1,13 +1,33 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 
 import { requireAdmin } from "@/lib/admin/auth";
-import { CUSTOM_ORDER_STATUSES, CUSTOM_ORDER_STATUS_LABELS, isCustomOrderStatus } from "@/lib/admin/lifecycle";
+import {
+  CUSTOM_ORDER_STATUSES,
+  CUSTOM_ORDER_STATUS_LABELS,
+  isCustomOrderStatus,
+} from "@/lib/admin/lifecycle";
 import { getPrisma } from "@/lib/prisma/db";
+import { AdminQueue, QueueStatusFilter, type QueueItem } from "@/components/admin/QueueList";
 
 export const dynamic = "force-dynamic";
 
-const fmt = (value: Date) => value.toISOString().slice(0, 16).replace("T", " ");
+export const metadata: Metadata = {
+  title: "Custom Orders — Studio Control Center",
+  robots: { index: false, follow: false },
+};
 
+const shortDate = (value: Date) =>
+  value.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+/**
+ * The custom-order queue.
+ *
+ * Content and filtering are unchanged — same query, same statuses, same search
+ * fields. What changed is the presentation: rows carry one status instead of a
+ * bordered badge plus a file count plus a raw timestamp, the timestamp is
+ * formatted for a person rather than printed as an ISO slice, and the status
+ * filter moved behind `Filters` so the default view is a list rather than a form.
+ */
 export default async function AdminCustomOrdersPage({
   searchParams,
 }: {
@@ -18,8 +38,7 @@ export default async function AdminCustomOrdersPage({
   const query = (q ?? "").trim();
   const statusFilter = isCustomOrderStatus(status) ? status : undefined;
 
-  const prisma = getPrisma();
-  const requests = await prisma.custom_order_requests.findMany({
+  const requests = await getPrisma().custom_order_requests.findMany({
     where: {
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(query
@@ -46,82 +65,69 @@ export default async function AdminCustomOrdersPage({
     },
   });
 
+  const items: QueueItem[] = requests.map((request) => {
+    const label =
+      CUSTOM_ORDER_STATUS_LABELS[request.status as keyof typeof CUSTOM_ORDER_STATUS_LABELS] ??
+      request.status;
+
+    return {
+      id: request.id,
+      href: `/admin/custom-orders/${request.id}`,
+      title: request.name,
+      subtitle: [
+        request.shape,
+        request.length,
+        request.instagram ? `@${request.instagram}` : request.email,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      meta: [
+        shortDate(request.created_at),
+        request._count.custom_order_attachments > 0
+          ? `${request._count.custom_order_attachments} file${request._count.custom_order_attachments === 1 ? "" : "s"}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      status: {
+        label,
+        tone: request.status === "pending_review" ? "attention" : "neutral",
+      },
+    };
+  });
+
+  const pending = requests.filter((row) => row.status === "pending_review").length;
+
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <Link href="/admin" className="text-[11px] text-muted-foreground hover:text-accent">
-          ← Studio Admin
-        </Link>
-        <h1 className="font-display font-light text-3xl text-foreground">Custom Orders</h1>
-        <p className="text-xs text-muted-foreground font-sans">
-          {requests.length} request{requests.length === 1 ? "" : "s"}
-          {statusFilter ? ` · ${CUSTOM_ORDER_STATUS_LABELS[statusFilter]}` : ""}
-        </p>
-      </div>
-
-      <form className="flex flex-wrap items-end gap-3 border border-border bg-surface p-4">
-        <label className="flex flex-col gap-1 flex-1 min-w-[12rem]">
-          <span className="text-[11px] uppercase tracking-wider font-mono text-muted-foreground">Search</span>
-          <input
-            type="search"
-            name="q"
-            defaultValue={query}
-            placeholder="Name, email or Instagram"
-            className="h-10 px-3 bg-background border border-border text-sm text-foreground"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-wider font-mono text-muted-foreground">Status</span>
-          <select
-            name="status"
-            defaultValue={statusFilter ?? ""}
-            className="h-10 px-3 bg-background border border-border text-sm text-foreground"
-          >
-            <option value="">All</option>
-            {CUSTOM_ORDER_STATUSES.map((value) => (
-              <option key={value} value={value}>
-                {CUSTOM_ORDER_STATUS_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" className="h-10 px-4 bg-foreground text-background text-xs uppercase tracking-[0.16em]">
-          Filter
-        </button>
-        {(query || statusFilter) && (
-          <Link href="/admin/custom-orders" className="h-10 inline-flex items-center text-xs text-muted-foreground hover:text-accent">
-            Clear
-          </Link>
-        )}
-      </form>
-
-      <div className="border border-border divide-y divide-border/60 bg-surface">
-        {requests.length === 0 && <p className="p-5 text-xs text-muted-foreground">No custom-order requests match.</p>}
-        {requests.map((request) => (
-          <Link
-            key={request.id}
-            href={`/admin/custom-orders/${request.id}`}
-            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-5 py-3.5 hover:bg-surface-subtle/40 transition-colors"
-          >
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-sm text-foreground truncate">{request.name}</span>
-              <span className="text-[11px] font-mono text-muted-foreground truncate">
-                {request.email}
-                {request.instagram ? ` · @${request.instagram}` : ""} · {request.shape} · {request.length}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-wider">
-              <span className="px-2 py-0.5 border border-border text-muted-foreground">
-                {CUSTOM_ORDER_STATUS_LABELS[request.status as keyof typeof CUSTOM_ORDER_STATUS_LABELS] ?? request.status}
-              </span>
-              {request._count.custom_order_attachments > 0 && (
-                <span className="text-muted-foreground">{request._count.custom_order_attachments} file(s)</span>
-              )}
-              <span className="text-muted-foreground">{fmt(request.created_at)}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </div>
+    <AdminQueue
+      title="Custom Orders"
+      description="Commission requests submitted through the storefront. Opening one shows the customer's full brief and the reference files they sent."
+      count={`${requests.length} request${requests.length === 1 ? "" : "s"}${
+        pending > 0 ? ` · ${pending} awaiting review` : ""
+      }`}
+      items={items}
+      searchAction="/admin/custom-orders"
+      query={query}
+      searchPlaceholder="Search by name, email or Instagram"
+      activeFilterCount={statusFilter ? 1 : 0}
+      filters={
+        <QueueStatusFilter
+          action="/admin/custom-orders"
+          value={statusFilter ?? ""}
+          query={query}
+          options={CUSTOM_ORDER_STATUSES.map((value) => ({
+            value,
+            label: CUSTOM_ORDER_STATUS_LABELS[value],
+          }))}
+        />
+      }
+      emptyTitle={query || statusFilter ? "No requests match" : "No custom orders yet"}
+      emptyDescription={
+        query || statusFilter
+          ? "Try a different search, or reset the filters."
+          : "Requests submitted through the custom order form appear here."
+      }
+      viewLabel="Open"
+    />
   );
 }

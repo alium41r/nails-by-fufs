@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Scratch space for one-off migration/verification scripts. Gitignored, so
+    // linting it would report on files no reviewer will ever see.
+    ".tmp-audit/**",
+    ".tmp-*/**",
   ]),
 ]);
 

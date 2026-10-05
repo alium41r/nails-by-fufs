@@ -5,14 +5,9 @@ import { ArrowRight, Mail, MapPin, Phone } from "lucide-react";
 import { Container } from "@/components/layout/Container";
 import { Shell } from "@/components/layout/Shell";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
-import {
-  BUSINESS_EMAIL_HREF,
-  BUSINESS_PHONE_HREF,
-  POLICY_CONTACT_HREF,
-  POLICY_LAST_UPDATED,
-  businessDetails,
-  businessContactRows,
-} from "@/config/business";
+import { StudioContent } from "@/components/studio/StudioContent";
+import { getSiteContent } from "@/lib/site-content";
+import type { SiteContact, SiteIdentity } from "@/lib/site-content-schema";
 
 /**
  * Shared presentation for the public policy pages (privacy, returns, shipping,
@@ -55,7 +50,30 @@ function SectionIndex({ sections }: { sections: LegalSection[] }) {
   );
 }
 
-export function BusinessContactBlock() {
+/**
+ * Confirmed business details, rendered from owner-managed settings.
+ *
+ * The values used to come from `@/config/business`; they are now the
+ * `site.contact` and `site.identity` content documents, so the owner can correct
+ * a phone number without a deploy. The *layout* of the block and the fact that it
+ * appears on every policy page remain code.
+ */
+export function BusinessContactBlock({
+  identity,
+  contact,
+}: {
+  identity: SiteIdentity;
+  contact: SiteContact;
+}) {
+  const rows = [
+    { label: "Email", value: contact.email },
+    { label: "Phone", value: contact.phone },
+    { label: "Address", value: contact.addressLines.join(", ") },
+    { label: "Country", value: contact.country },
+  ];
+  const emailHref = `mailto:${contact.email}`;
+  const phoneHref = `tel:${contact.phone.replace(/[^\d+]/g, "")}`;
+
   return (
     <section
       aria-labelledby="business-details-heading"
@@ -67,12 +85,12 @@ export function BusinessContactBlock() {
           id="business-details-heading"
           className="font-display font-light text-2xl text-foreground"
         >
-          {businessDetails.brandName}
+          {identity.name}
         </h2>
       </div>
 
       <dl className="flex flex-col gap-3 text-xs sm:text-sm">
-        {businessContactRows().map((row) => (
+        {rows.map((row) => (
           <div key={row.label} className="flex flex-col sm:flex-row sm:gap-3">
             <dt className="text-muted-foreground sm:w-32 shrink-0">{row.label}</dt>
             <dd className="text-foreground font-sans">{row.value}</dd>
@@ -82,27 +100,27 @@ export function BusinessContactBlock() {
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1 text-xs sm:text-sm">
         <a
-          href={BUSINESS_EMAIL_HREF}
+          href={emailHref}
           className="inline-flex items-center gap-1.5 text-accent hover:underline font-medium"
         >
           <Mail className="h-3.5 w-3.5" />
-          <span>{businessDetails.email}</span>
+          <span>{contact.email}</span>
         </a>
         <a
-          href={BUSINESS_PHONE_HREF}
+          href={phoneHref}
           className="inline-flex items-center gap-1.5 text-accent hover:underline font-medium"
         >
           <Phone className="h-3.5 w-3.5" />
-          <span>{businessDetails.phone}</span>
+          <span>{contact.phone}</span>
         </a>
         <span className="inline-flex items-center gap-1.5 text-muted-foreground">
           <MapPin className="h-3.5 w-3.5 text-accent" />
-          <span>{businessDetails.addressLines.join(", ")}</span>
+          <span>{contact.addressLines.join(", ")}</span>
         </span>
       </div>
 
       <Link
-        href={POLICY_CONTACT_HREF}
+        href="/contact"
         className="inline-flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-accent hover:underline font-medium"
       >
         <span>Contact the Studio</span>
@@ -113,14 +131,28 @@ export function BusinessContactBlock() {
 }
 
 export interface LegalPageProps {
+  /** The `site_content` key behind this page, so Studio Mode can edit it. */
+  contentKey: string;
   eyebrow: string;
   title: string;
   description: string;
   intro?: string[];
   sections: LegalSection[];
+  /** Published "last updated" date, shown under the title. */
+  lastUpdated?: string;
 }
 
-export function LegalPage({ eyebrow, title, description, intro, sections }: LegalPageProps) {
+export async function LegalPage({
+  contentKey,
+  eyebrow,
+  title,
+  description,
+  intro,
+  sections,
+  lastUpdated,
+}: LegalPageProps) {
+  const { identity, contact } = await getSiteContent();
+
   return (
     <Shell>
       <div className="py-10 sm:py-14 lg:py-20 bg-background">
@@ -130,15 +162,26 @@ export function LegalPage({ eyebrow, title, description, intro, sections }: Lega
               <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: title }]} />
 
               <div className="flex flex-col gap-3 pt-2">
-                <span className="eyebrow text-accent tracking-[0.2em]">{eyebrow}</span>
+                <StudioContent
+                  target={{ key: contentKey, field: "eyebrow", label: "Eyebrow" }}
+                  className="eyebrow text-accent tracking-[0.2em]"
+                >
+                  {eyebrow}
+                </StudioContent>
                 <h1 className="font-display font-light text-4xl sm:text-5xl text-foreground tracking-tight text-balance">
-                  {title}
+                  <StudioContent target={{ key: contentKey, field: "title", label: "Title" }}>
+                    {title}
+                  </StudioContent>
                 </h1>
-                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed font-sans max-w-xl">
+                <StudioContent
+                  as="div"
+                  target={{ key: contentKey, field: "description", label: "Description" }}
+                  className="text-sm sm:text-base text-muted-foreground leading-relaxed font-sans max-w-xl"
+                >
                   {description}
-                </p>
+                </StudioContent>
                 <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground pt-1">
-                  Last updated: {POLICY_LAST_UPDATED}
+                  Last updated: {lastUpdated}
                 </p>
               </div>
             </div>
@@ -169,17 +212,35 @@ export function LegalPage({ eyebrow, title, description, intro, sections }: Lega
                       id={`${section.id}-heading`}
                       className="font-display font-light text-xl sm:text-2xl text-foreground tracking-tight"
                     >
-                      {section.heading}
+                      <StudioContent
+                        target={{
+                          key: contentKey,
+                          field: `sections.${index}.heading`,
+                          label: `Section ${index + 1}`,
+                        }}
+                      >
+                        {section.heading}
+                      </StudioContent>
                     </h2>
                   </div>
 
-                  {section.paragraphs?.map((paragraph) => (
-                    <p
-                      key={paragraph}
+                  {section.paragraphs?.map((paragraph, paragraphIndex) => (
+                    <StudioContent
+                      // Keyed by position, not by the string: an owner may
+                      // legitimately repeat a line (or two sections may share
+                      // one), and keying on content produced duplicate-key
+                      // warnings the moment that happened.
+                      key={`${section.id}-p-${paragraphIndex}`}
+                      as="div"
+                      target={{
+                        key: contentKey,
+                        field: `sections.${index}.paragraphs.${paragraphIndex}`,
+                        label: `Paragraph ${paragraphIndex + 1}`,
+                      }}
                       className="text-sm text-muted-foreground leading-relaxed font-sans"
                     >
                       {paragraph}
-                    </p>
+                    </StudioContent>
                   ))}
 
                   {section.bullets && section.bullets.length > 0 && (
@@ -193,7 +254,7 @@ export function LegalPage({ eyebrow, title, description, intro, sections }: Lega
               ))}
             </div>
 
-            <BusinessContactBlock />
+            <BusinessContactBlock identity={identity} contact={contact} />
           </div>
         </Container>
       </div>

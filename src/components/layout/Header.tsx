@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { siteConfig } from "@/config/site";
+import type { NavItem, SiteIdentity } from "@/lib/site-content-schema";
 import { Container } from "./Container";
 import { MobileDrawer } from "./MobileDrawer";
 import { HeaderSearch } from "./HeaderSearch";
@@ -13,7 +13,20 @@ import { useCart } from "@/providers/CartProvider";
 import { Menu, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function Header({ products }: { products: CatalogueProduct[] }) {
+export interface HeaderProps {
+  products: CatalogueProduct[];
+  identity: SiteIdentity;
+  /** Desktop navigation, already filtered of disabled items by the caller. */
+  nav: NavItem[];
+  /**
+   * The mobile drawer's own list. It is a separate document because the drawer
+   * deliberately shows more items than the desktop bar — previously the drawer
+   * hardcoded its own array, so editing the config changed desktop only.
+   */
+  mobileNav: NavItem[];
+}
+
+export function Header({ products, identity, nav, mobileNav }: HeaderProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
   const { totalItems } = useCart();
@@ -45,11 +58,11 @@ export function Header({ products }: { products: CatalogueProduct[] }) {
 
             {/* Desktop Navigation Links (Left) */}
             <nav className="hidden lg:flex items-center gap-5 xl:gap-7" aria-label="Main Navigation">
-              {siteConfig.mainNav.map((item) => {
+              {nav.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link
-                    key={item.href}
+                    key={item.key}
                     href={item.href}
                     className={cn(
                       "text-xs uppercase tracking-[0.16em] transition-colors",
@@ -73,10 +86,10 @@ export function Header({ products }: { products: CatalogueProduct[] }) {
                     pathname === "/" ? "text-accent font-normal" : "text-foreground"
                   )}
                 >
-                  {siteConfig.name.toUpperCase()}
+                  {identity.name.toUpperCase()}
                 </span>
                 <span className="hidden sm:block text-[9px] uppercase tracking-[0.28em] text-muted-foreground -mt-0.5">
-                  {siteConfig.shortName.toUpperCase()} • Press-On Studio
+                  {identity.shortName.toUpperCase()} • {identity.tagline}
                 </span>
               </Link>
             </div>
@@ -112,7 +125,7 @@ export function Header({ products }: { products: CatalogueProduct[] }) {
       </header>
 
       {/* Mobile Navigation Drawer */}
-      <MobileDrawer isOpen={drawerOpen} onClose={handleCloseDrawer} />
+      <MobileDrawer isOpen={drawerOpen} onClose={handleCloseDrawer} identity={identity} nav={mobileNav} />
     </>
   );
 }

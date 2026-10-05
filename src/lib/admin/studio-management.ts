@@ -4,6 +4,8 @@ import { getPrisma } from "@/lib/prisma/db";
 import { publicImageUrl, type PlaceholderRatio } from "@/lib/catalogue";
 import type { ProductLength } from "@/lib/admin/catalogue-validation";
 import { versionTokenExpression } from "@/lib/admin/version-token";
+import { getSiteContent } from "@/lib/site-content";
+import type { SiteContent } from "@/lib/site-content-schema";
 
 /**
  * Management view models for Studio Mode.
@@ -61,7 +63,9 @@ export interface StudioCollectionManagement {
 export interface StudioProductManagement {
   id: string;
   slug: string;
-  collectionId: string;
+  /** Null when the product is not assigned to a collection. */
+  collectionId: string | null;
+  /** Empty string when there is no collection, matching `CatalogueProduct`. */
   collectionSlug: string;
   name: string;
   descriptor: string;
@@ -83,6 +87,24 @@ export interface StudioProductManagement {
 export interface StudioManagement {
   products: StudioProductManagement[];
   collections: StudioCollectionManagement[];
+  /**
+   * The store's configured default currency.
+   *
+   * Travels with the management projection rather than the public content read
+   * because only the Studio editors need it, and this projection is fetched only
+   * once an admin has entered Studio Mode. It decides which currency a new price
+   * entry starts on; it never rewrites a stored price.
+   */
+  defaultCurrency: string;
+  /**
+   * The owner-managed content documents, so Studio Mode can edit storefront copy
+   * in place.
+   *
+   * Part of the admin-only projection for the same reason as everything else
+   * here: the public storefront gets the *rendered result* of these documents,
+   * and a visitor's response should not carry the editing surface's raw state.
+   */
+  content: SiteContent;
 }
 
 /**
@@ -134,6 +156,7 @@ export async function loadStudioManagement(): Promise<StudioManagement> {
         is_active: true,
         featured: true,
         display_order: true,
+        // Nullable: a product may exist without a collection.
         collections: { select: { slug: true } },
       },
     }),
@@ -149,6 +172,10 @@ export async function loadStudioManagement(): Promise<StudioManagement> {
       },
     }),
   ]);
+
+  // Content and the default currency come from the same read the storefront
+  // uses, so Studio Mode edits exactly what a customer's page was built from.
+  const content = await getSiteContent();
 
   // Version tokens for both tables, at full timestamp precision.
   const [collectionVersions, productVersions] = await Promise.all([
@@ -177,6 +204,8 @@ export async function loadStudioManagement(): Promise<StudioManagement> {
   }
 
   return {
+    defaultCurrency: content.currency.default,
+    content,
     collections: collectionRows.map((row) => ({
       id: row.id,
       slug: row.slug,
@@ -195,7 +224,7 @@ export async function loadStudioManagement(): Promise<StudioManagement> {
       id: row.id,
       slug: row.slug,
       collectionId: row.collection_id,
-      collectionSlug: row.collections.slug,
+      collectionSlug: row.collections?.slug ?? "",
       name: row.name,
       descriptor: row.descriptor,
       description: row.description,

@@ -1,88 +1,113 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Suspense } from "react";
 
 import { signOutAction } from "@/app/admin/actions";
-import { Button } from "@/components/ui/Button";
-import { Container } from "@/components/layout/Container";
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { AdminNotice } from "@/components/admin/AdminNotice";
 import { getAdminUser } from "@/lib/admin/auth";
+import { getPrisma } from "@/lib/prisma/db";
+import { getSiteBasics } from "@/lib/site-content";
 
 // Session-gated pages must be rendered per request, never prerendered.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Studio Admin — Nails by Fufs",
+  title: "Studio Control Center",
   robots: { index: false, follow: false },
 };
 
 /**
- * Guarded shell for every /admin page. `requireAdmin()` runs here and again in
- * each page and action, so authorisation never depends on the proxy or on a link
- * being hidden.
+ * The Control Center shell.
+ *
+ * ## What changed, and why it needed to
+ *
+ * The previous shell was a single top bar with six flat links, `Studio Admin` as
+ * the only identity, and a hard `hidden md:flex` on the navigation — so on a
+ * phone the admin had *no navigation at all* except the wordmark. It also had no
+ * room for the outstanding-work counts that make a control center useful.
+ *
+ * This is a sidebar layout: grouped destinations, live counts on the inbound
+ * queues, a drawer instead of a disappearance on small screens, and a neutral
+ * background so the content reads as the subject rather than the chrome.
+ *
+ * ## Why the layout awaits admin data
+ *
+ * The counts and the signed-in address are read here, once, and passed down.
+ * `getAdminUser()` still returns null for a non-admin, and the layout deliberately
+ * does not redirect — `/admin/login` lives inside this segment, so redirecting
+ * here would loop the sign-in page against itself. Each page calls
+ * `requireAdmin()` itself and `src/proxy.ts` gates the whole segment, exactly as
+ * before.
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  // Intentionally NOT a guard: /admin/login lives inside this segment, so
-  // redirecting here would loop the sign-in page against itself. Each admin page
-  // calls requireAdmin() itself, and src/proxy.ts gates the whole segment.
   const user = await getAdminUser();
 
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-surface">
-        <Container size="wide">
-          <div className="flex h-16 items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <Link href="/admin" className="font-display text-lg text-foreground tracking-wide">
-                Studio Admin
-              </Link>
-              <nav className="hidden md:flex items-center gap-4 text-xs">
-                <Link href="/admin" className="text-muted-foreground hover:text-accent transition-colors">
-                  Catalogue
-                </Link>
-                <Link href="/admin/custom-orders" className="text-muted-foreground hover:text-accent transition-colors">
-                  Custom Orders
-                </Link>
-                <Link href="/admin/appointments" className="text-muted-foreground hover:text-accent transition-colors">
-                  Appointments
-                </Link>
-                <Link href="/admin/orders" className="text-muted-foreground hover:text-accent transition-colors">
-                  Orders
-                </Link>
-                <Link href="/shop" className="text-muted-foreground hover:text-accent transition-colors">
-                  View Storefront
-                </Link>
-                <Link
-                  href="/shop?studio=1"
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs border border-accent/40 bg-accent-subtle/50 text-accent font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
-                  title="Open storefront in visual Studio Mode"
-                >
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-accent" />
-                  </span>
-                  Studio Mode
-                </Link>
-              </nav>
-            </div>
+  // Counts are only read for a signed-in admin: an unauthenticated render of the
+  // login page must not touch the database at all.
+  const counts = user
+    ? await (async () => {
+        const prisma = getPrisma();
+        const [customOrders, appointments] = await Promise.all([
+          prisma.custom_order_requests.count({ where: { status: "pending_review" } }),
+          prisma.appointment_requests.count({ where: { status: "pending_review" } }),
+        ]);
+        return { customOrders, appointments };
+      })()
+    : { customOrders: 0, appointments: 0 };
 
+  // The wordmark is the studio's own name rather than a hardcoded string, so the
+  // admin and the storefront agree.
+  const { identity } = await getSiteBasics();
+
+  return (
+    <div className="admin-shell flex min-h-screen bg-background">
+      <AdminSidebar counts={counts} email={user?.email ?? null} />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="hidden border-b border-border/70 lg:block">
+          <div className="flex h-16 items-center justify-between gap-4 px-6 xl:px-10">
+            <div className="min-w-0">
+              <p className="truncate text-[13px] text-muted-foreground">{identity.name}</p>
+            </div>
             {user && (
-              <div className="flex items-center gap-3">
-                <span className="hidden sm:inline text-[11px] font-mono text-muted-foreground">
-                  {user.email}
-                </span>
-                <form action={signOutAction}>
-                  <Button type="submit" variant="outline" size="sm" className="text-[11px]">
-                    Sign Out
-                  </Button>
-                </form>
-              </div>
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground"
+                >
+                  Sign out
+                </button>
+              </form>
             )}
           </div>
-        </Container>
-      </header>
+        </header>
 
-      <main className="py-8 sm:py-10">
-        <Container size="wide">{children}</Container>
-      </main>
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8 xl:px-10">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+            {/*
+              Reads `?saved=` / `?error=` from whichever page redirected here.
+              Wrapped in Suspense because `useSearchParams` suspends during a
+              static prerender, and this layout contains the login page.
+            */}
+            <Suspense fallback={null}>
+              <AdminNoticeFromUrl />
+            </Suspense>
+
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
+}
+
+/**
+ * Bridges the redirect parameters into `<AdminNotice>`.
+ *
+ * The notice reads `useSearchParams` itself; this wrapper exists only so the
+ * layout can place it inside a Suspense boundary without the layout itself
+ * becoming a client boundary.
+ */
+async function AdminNoticeFromUrl() {
+  return <AdminNotice />;
 }

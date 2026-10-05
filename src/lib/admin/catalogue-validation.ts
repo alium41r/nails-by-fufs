@@ -116,6 +116,24 @@ export function parsePricePair(
   return { ok: true, priceMinor, currency };
 }
 
+/**
+ * Turns a display name into a slug candidate.
+ *
+ * Pure and shared by both write surfaces: a new product's slug is derived from
+ * its name on the server, and the Control Center shows the owner the same
+ * candidate so what they see matches what gets stored.
+ */
+export function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    // Strip combining marks so "Café" becomes "cafe" rather than losing the e.
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
 /** Splits the textarea form of the "included" list into stored lines. */
 export function parseIncluded(raw: string): string[] {
   return raw

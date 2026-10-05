@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { CatalogueProduct } from "@/lib/catalogue";
 import type { StudioProductManagement } from "@/lib/admin/studio-management";
-import { parsePrice, PRICE_PLACEHOLDER } from "@/lib/studio/derive";
+import { parsePrice } from "@/lib/studio/derive";
+import { currenciesForPicker, majorUnitsHint } from "@/lib/currency";
 import { useStudio } from "@/lib/studio/hooks";
 import { useStudioManagement } from "@/lib/studio/management";
 import type { ProductDraft } from "@/lib/studio/types";
@@ -18,6 +19,15 @@ import { Check, RotateCcw, AlertTriangle, Images } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProductEditorProps {
+  /**
+   * The store's configured default currency.
+   *
+   * Passed in rather than assumed, because it is owner-managed: it decides which
+   * currency a first-time price entry starts on, and it labels the storefront's
+   * no-price placeholder. It never rewrites a stored price — an existing product
+   * keeps whatever currency it was priced in.
+   */
+  storeCurrency?: string;
   /**
    * The authoritative management record. Every field the editor shows comes from
    * here, which is the only source carrying the real `is_active`, `featured`,
@@ -60,7 +70,13 @@ const FOCUS_FIELD_TARGETS: Record<string, string> = {
   featured: "studio-field-featured",
 };
 
-export function ProductEditor({ management, product, focusField, onClose }: ProductEditorProps) {
+export function ProductEditor({
+  management,
+  product,
+  focusField,
+  onClose,
+  storeCurrency,
+}: ProductEditorProps) {
   const { state, patchProduct, openImageManager } = useStudio();
   const { saveProduct, rebaseProduct } = useStudioManagement();
   const draft = state.productDrafts[product.id] || {};
@@ -75,7 +91,7 @@ export function ProductEditor({ management, product, focusField, onClose }: Prod
     currency: management.currency,
     amount: management.priceMinor === null ? "" : (management.priceMinor / 100).toFixed(2),
   };
-  const initialCurrency = draft.currency ?? basePrice.currency ?? "USD";
+  const initialCurrency = draft.currency ?? basePrice.currency ?? storeCurrency ?? "USD";
   const initialPriceStr =
     draft.priceMinor !== undefined
       ? draft.priceMinor === null
@@ -198,7 +214,7 @@ export function ProductEditor({ management, product, focusField, onClose }: Prod
     setName(management.name);
     setDescriptor(management.descriptor);
     setDescription(management.description);
-    setCurrency(management.currency ?? "USD");
+    setCurrency(management.currency ?? storeCurrency ?? "USD");
     setPriceStr(management.priceMinor === null ? "" : (management.priceMinor / 100).toFixed(2));
     setShape(management.shape);
     setLength(management.defaultLength);
@@ -296,17 +312,27 @@ export function ProductEditor({ management, product, focusField, onClose }: Prod
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
               >
-                <option value="USD">USD ($)</option>
-                <option value="CAD">CAD ($)</option>
-                <option value="GBP">GBP (£)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="AUD">AUD ($)</option>
+                {/*
+                  Driven by @/lib/currency rather than a hardcoded list: the old
+                  five options had no PKR, which is the currency this studio
+                  actually prices in, and the store's configured default now
+                  appears first.
+                */}
+                {currenciesForPicker(storeCurrency).map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.code} ({option.symbol})
+                  </option>
+                ))}
               </StudioSelect>
             </StudioField>
           </div>
 
           <div className="col-span-2">
-            <StudioField label="Price" htmlFor="studio-field-price" hint={!priceStr ? "Leave empty for $XX" : ""}>
+            <StudioField
+              label="Price"
+              htmlFor="studio-field-price"
+              hint={!priceStr ? "Leave empty for the no-price placeholder" : majorUnitsHint(currency)}
+            >
               <div className="relative">
                 <StudioInput
                   id="studio-field-price"
@@ -325,7 +351,11 @@ export function ProductEditor({ management, product, focusField, onClose }: Prod
         {!priceStr && (
           <div className="p-2.5 bg-rose-500/10 border border-rose-400/30 text-rose-600 dark:text-rose-400 text-[11px] flex items-center gap-2 rounded-xs">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            <span>Unpriced items will display {PRICE_PLACEHOLDER} on the storefront.</span>
+            <span>
+              Unpriced items display the no-price placeholder on the storefront. Pick a currency above
+              and enter an amount to make this set checkout-eligible. Existing prices are never
+              converted between currencies.
+            </span>
           </div>
         )}
 

@@ -76,7 +76,9 @@ export async function createOrderFromCart(
       price_minor: true,
       currency: true,
       is_active: true,
-      collections: { select: { slug: true, is_active: true } },
+      archived_at: true,
+      // Nullable: a product may exist without a collection now.
+      collections: { select: { slug: true, is_active: true, archived_at: true } },
     },
   });
 
@@ -94,8 +96,19 @@ export async function createOrderFromCart(
   for (const line of lines) {
     const product = byId.get(line.productId);
 
-    // Missing, unpublished, or inside an unpublished collection: not orderable.
-    if (!product || !product.is_active || !product.collections.is_active) {
+    // Missing, unpublished, archived, or inside a collection that is any of
+    // those: not orderable. Deliberately repeats the storefront's public
+    // visibility rule rather than trusting that the bag came from a visible page
+    // — a bag survives in the customer's browser across a catalogue change, so
+    // this is the check that actually decides whether an order may be placed.
+    if (
+      !product ||
+      !product.is_active ||
+      product.archived_at !== null ||
+      product.collections === null ||
+      !product.collections.is_active ||
+      product.collections.archived_at !== null
+    ) {
       unavailable.push(product?.name ?? "A set in your bag");
       continue;
     }
@@ -171,7 +184,9 @@ export async function createOrderFromCart(
       product_descriptor: entry.product.descriptor,
       product_shape: entry.product.shape,
       product_finish: entry.product.finish,
-      collection_slug: entry.product.collections.slug,
+      // Empty string when the product has no collection. This is a historical
+      // snapshot, so it records what was true at purchase time.
+      collection_slug: entry.product.collections?.slug ?? "",
       selected_size: entry.line.size,
       selected_size_label: SIZE_LABELS[entry.line.size],
       selected_length: entry.line.length,

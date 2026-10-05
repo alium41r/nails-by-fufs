@@ -1,6 +1,7 @@
 import React from "react";
 
 import { siteConfig } from "@/config/site";
+import { DEFAULT_IDENTITY } from "@/lib/site-content-schema";
 import { Container } from "./Container";
 
 /**
@@ -100,7 +101,7 @@ export function StorefrontRouteLoading() {
                 {siteConfig.name.toUpperCase()}
               </span>
               <span className="hidden sm:block text-[9px] uppercase tracking-[0.28em] text-muted-foreground -mt-0.5">
-                {siteConfig.shortName.toUpperCase()} • Press-On Studio
+                {siteConfig.shortName.toUpperCase()} • {DEFAULT_IDENTITY.skeletonTagline}
               </span>
             </div>
 

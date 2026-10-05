@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { finalizeProductImageUpload, prepareProductImageUpload } from "@/app/admin/actions";
-import { Button } from "@/components/ui/Button";
+import { AdminButton } from "@/components/admin/ui/controls";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/heic,image/gif";
 
@@ -67,7 +67,7 @@ export function ProductImageUploader({ productId }: { productId: string }) {
   };
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2">
       <input
         ref={inputRef}
         type="file"
@@ -82,31 +82,31 @@ export function ProductImageUploader({ productId }: { productId: string }) {
         }}
       />
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        isLoading={isBusy}
-        onClick={() => inputRef.current?.click()}
-        className="w-full text-[11px]"
-      >
-        Upload Images
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <AdminButton
+          type="button"
+          variant="primary"
+          disabled={isBusy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {isBusy ? "Uploading…" : "Add photos"}
+        </AdminButton>
+
+        <p className="text-xs text-muted-foreground">
+          PNG, JPG, WebP, HEIC or GIF, up to 10 MB each. The first photo becomes the main one.
+        </p>
+      </div>
 
       {uploaded > 0 && (
-        <p className="text-[11px] text-accent">
-          {uploaded} image{uploaded === 1 ? "" : "s"} uploaded.
+        <p role="status" className="text-[13px] text-emerald-700 dark:text-emerald-400">
+          {uploaded} photo{uploaded === 1 ? "" : "s"} uploaded.
         </p>
       )}
       {error && (
-        <p role="alert" className="text-[11px] text-rose-600 dark:text-rose-400">
+        <p role="alert" className="text-[13px] text-rose-600 dark:text-rose-400">
           {error}
         </p>
       )}
-      <p className="text-[10px] text-muted-foreground leading-relaxed">
-        PNG, JPG, WebP, HEIC or GIF · max 10 MB each. Uploads go directly to Storage with a
-        short-lived signed URL; the first image becomes the primary one.
-      </p>
     </div>
   );
 }

@@ -4,6 +4,8 @@ import React, { useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useStudio } from "@/lib/studio/hooks";
 import { useStudioManagement } from "@/lib/studio/management";
+import { StudioContentEditor, contentDocumentMeta } from "./StudioContentEditor";
+import { readContentValue } from "@/lib/studio/content";
 import { hasOpenStudioOverlay, trackStudioOverlay } from "@/lib/studio/overlay";
 import {
   managementToCatalogueView,
@@ -37,6 +39,7 @@ export function StudioPanel() {
   const { isActive, isPreviewMode, activePanel, closePanel } = useStudio();
   const { products, collections } = useStudioCatalogue();
   const management = useStudioManagement();
+  const refreshManagement = management.refresh;
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
@@ -145,12 +148,30 @@ export function StudioPanel() {
       ? collections.find((c) => c.slug === activePanel.slug)
       : undefined;
 
+  const contentDocument =
+    activePanel.type === "content" && management.content
+      ? (() => {
+          const meta = contentDocumentMeta().find((entry) => entry.key === activePanel.key);
+          return {
+            document: {
+              key: activePanel.key,
+              label: meta?.label ?? activePanel.key,
+              path: meta?.path ?? "/",
+              value: readContentValue(management.content, activePanel.key),
+            },
+            focusField: activePanel.focusField,
+          };
+        })()
+      : undefined;
+
   const panelTitle =
     activePanel.type === "images"
       ? "Product photos"
       : activePanel.type === "product"
         ? resolvedProduct?.name || "Product editor"
-        : resolvedCollection?.title || "Collection editor";
+        : activePanel.type === "content"
+          ? (contentDocument?.document.label ?? "Storefront content")
+          : resolvedCollection?.title || "Collection editor";
 
   return (
     <>
@@ -201,11 +222,25 @@ export function StudioPanel() {
               product={resolvedProduct}
               focusField={activePanel.focusField}
               onClose={closePanel}
+              storeCurrency={management.defaultCurrency}
             />
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">
               This product is not in the catalogue. Reload the page to refresh.
             </div>
+          ))}
+
+        {activePanel.type === "content" &&
+          (contentDocument ? (
+            <div className="p-5">
+              <StudioContentEditor
+                key={`${contentDocument.document.key}:${JSON.stringify(contentDocument.document.value).length}`}
+                document={contentDocument.document}
+                onSaved={() => void refreshManagement()}
+              />
+            </div>
+          ) : (
+            <EditorLoading />
           ))}
 
         {activePanel.type === "collection" &&

@@ -17,6 +17,7 @@ import {
   persistSetPrimary,
   toStudioImage,
 } from "./adapter";
+import { FALLBACK_CURRENCY } from "@/lib/currency";
 import { studioStore } from "./store";
 import type { CollectionDraft, ProductDraft, StudioImage, StudioSaveResult } from "./types";
 
@@ -51,6 +52,16 @@ import type { CollectionDraft, ProductDraft, StudioImage, StudioSaveResult } fro
 export interface StudioManagementContextValue {
   products: StudioManagement["products"];
   collections: StudioManagement["collections"];
+  /** The store's configured default currency, for the price editors. */
+  defaultCurrency: string;
+  /**
+   * The owner-managed content documents, or null before they load.
+   *
+   * Null (rather than a defaults tree) so a content editor can distinguish
+   * "not loaded" from "matches the defaults" — otherwise an early save could
+   * overwrite real values with defaults.
+   */
+  content: StudioManagement["content"] | null;
   /** False outside Studio Mode, where no management data may be fetched. */
   isLoaded: boolean;
   productById: (id: string) => StudioManagement["products"][number] | undefined;
@@ -78,7 +89,20 @@ export interface StudioManagementContextValue {
   removeCover: (collectionId: string) => Promise<StudioSaveResult>;
 }
 
-const EMPTY_MANAGEMENT: StudioManagement = { products: [], collections: [] };
+/**
+ * The empty projection used before the real one arrives.
+ *
+ * `content` is `null` rather than a defaults tree: the editors must be able to
+ * tell "no content loaded yet" from "the owner's content happens to equal the
+ * defaults", and a fallback tree here would let a save write defaults over real
+ * values. Components that need content render nothing until it loads.
+ */
+const EMPTY_MANAGEMENT: StudioManagement = {
+  products: [],
+  collections: [],
+  defaultCurrency: FALLBACK_CURRENCY,
+  content: null as unknown as StudioManagement["content"],
+};
 
 /**
  * The value a component outside Studio Mode sees.
@@ -92,6 +116,8 @@ const EMPTY_MANAGEMENT: StudioManagement = { products: [], collections: [] };
 const ABSENT_MANAGEMENT: StudioManagementContextValue = {
   products: [],
   collections: [],
+  defaultCurrency: FALLBACK_CURRENCY,
+  content: null,
   isLoaded: false,
   productById: () => undefined,
   collectionById: () => undefined,
@@ -436,6 +462,8 @@ export function StudioManagementProvider({ children }: { children: React.ReactNo
     () => ({
       products: management.products,
       collections: management.collections,
+      defaultCurrency: management.defaultCurrency || FALLBACK_CURRENCY,
+      content: management.content ?? null,
       isLoaded: true,
       productById: (id) => management.products.find((product) => product.id === id),
       collectionById: (id) => management.collections.find((collection) => collection.id === id),

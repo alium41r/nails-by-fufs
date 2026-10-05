@@ -12,6 +12,7 @@ import {
   Star,
   ArrowUp,
   ArrowDown,
+  GripVertical,
   Trash2,
   Upload,
   Plus,
@@ -55,6 +56,8 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
    * effect to prune it.
    */
   const [altTexts, setAltTexts] = useState<Record<string, string>>({});
+  /** The shot currently being dragged, so a drop onto itself is a no-op. */
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const altValueFor = (id: string, fallback: string) => altTexts[id] ?? fallback;
 
@@ -202,6 +205,32 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
       ...images.filter((image) => image.id !== imageId),
     ];
     await runWrite("Setting the cover photograph", () =>
+      reorderImages(
+        product.id,
+        reordered.map((image) => image.id),
+      ),
+    );
+  };
+
+  /**
+   * Drops one shot at another's position.
+   *
+   * Reuses `reorderImages` with the whole resulting order, which is the same
+   * contract the up/down buttons use — so a drag and a click cannot disagree
+   * about what "the order" means, and the server still sets the primary flag from
+   * position in one write.
+   */
+  const handleDragReorder = async (draggedId: string, targetId: string) => {
+    const before = currentImages();
+    const from = before.findIndex((image) => image.id === draggedId);
+    const to = before.findIndex((image) => image.id === targetId);
+    if (from === -1 || to === -1 || from === to) return;
+
+    const reordered = [...before];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+
+    await runWrite("Reordering the gallery", () =>
       reorderImages(
         product.id,
         reordered.map((image) => image.id),
@@ -368,9 +397,26 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
               return (
                 <div
                   key={img.id}
+                  // Native HTML5 drag, as on the catalogue lists: no dependency,
+                  // and it coexists with the up/down buttons, which stay for
+                  // keyboard and touch users.
+                  draggable
+                  onDragStart={() => setDraggingId(img.id)}
+                  onDragEnd={() => setDraggingId(null)}
+                  onDragOver={(event) => {
+                    if (draggingId && draggingId !== img.id) event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (draggingId && draggingId !== img.id) {
+                      void handleDragReorder(draggingId, img.id);
+                    }
+                    setDraggingId(null);
+                  }}
                   className={cn(
                     "p-3 border rounded-xs bg-surface flex flex-col gap-3 transition-colors",
-                    img.isPrimary ? "border-accent/60 ring-1 ring-accent/30" : "border-border"
+                    img.isPrimary ? "border-accent/60 ring-1 ring-accent/30" : "border-border",
+                    draggingId === img.id && "opacity-60 border-accent",
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -403,7 +449,11 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
                     {/* Metadata & Controls */}
                     <div className="flex-1 flex flex-col justify-between min-h-[80px]">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-mono text-muted-foreground">
+                        <span className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground">
+                          <GripVertical
+                            className="h-3.5 w-3.5 cursor-grab"
+                            aria-hidden="true"
+                          />
                           Shot 0{idx + 1}
                         </span>
 

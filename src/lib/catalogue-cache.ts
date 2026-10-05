@@ -61,6 +61,19 @@ export const CATALOGUE_CACHE_TAG = "storefront-catalogue";
 export const CATALOGUE_CACHE_SECONDS = 60;
 
 /**
+ * The cache tag covering every owner-managed content read.
+ *
+ * A second tag rather than one shared tag, because the two change independently
+ * and at different rates: editing the hero heading should not expire the
+ * catalogue, and adding a product should not expire the policy pages. Each
+ * surface invalidates only its own tag, and both are cheap to recompute.
+ */
+export const CONTENT_CACHE_TAG = "storefront-content";
+
+/** Backstop staleness bound for content, matching the catalogue's reasoning. */
+export const CONTENT_CACHE_SECONDS = 60;
+
+/**
  * Every storefront path a catalogue change can appear on.
  *
  * The dynamic patterns (`/product/[slug]`, `/collections/[slug]`) are
@@ -92,3 +105,75 @@ export function invalidateCatalogue(): void {
     revalidatePath(path);
   }
 }
+
+/**
+ * Every path that renders owner-managed content.
+ *
+ * Wider than `CATALOGUE_PATHS` because site-wide content — the announcement bar,
+ * the header and mobile navigation, the footer's social links — renders inside
+ * `<Shell>` on every storefront route, not just the ones that show products.
+ * The policy and FAQ pages are listed by name because they have no dynamic
+ * segment. `/cart` and `/checkout` are included deliberately: they render the
+ * shell too, so a stale announcement bar there is exactly the kind of drift this
+ * function exists to prevent.
+ *
+ * `/admin` is included so the Control Center reflects an edit made in Studio
+ * Mode (or another tab) without a manual reload.
+ */
+const CONTENT_PATHS = [
+  "/",
+  "/shop",
+  "/collections",
+  "/search",
+  "/custom",
+  "/about",
+  "/contact",
+  "/faq",
+  "/how-it-works",
+  "/size-guide",
+  "/book-appointment",
+  "/cart",
+  "/checkout",
+  "/privacy-policy",
+  "/returns-refunds",
+  "/shipping-policy",
+  "/terms",
+  "/product/[slug]",
+  "/collections/[slug]",
+  "/admin",
+] as const;
+
+/**
+ * Invalidates the cached content documents and every route that renders them.
+ *
+ * Separate from `invalidateCatalogue()` so a content edit does not needlessly
+ * expire the catalogue, and vice versa. Safe to call for a write that changed
+ * nothing.
+ */
+export function invalidateSiteContent(): void {
+  updateTag(CONTENT_CACHE_TAG);
+
+  for (const path of CONTENT_PATHS) {
+    revalidatePath(path);
+  }
+}
+
+/*
+ * ## Scope of the invalidation, and one thing it deliberately does not cover
+ *
+ * `updateTag` expires the cache of the process that handles the write. In
+ * production that is the whole story, because the admin's edit arrives as a
+ * Server Action and runs inside the same instance that serves the storefront —
+ * which is the read-your-own-write property the integration suite asserts
+ * (`tests/integration/content.e2e.test.ts`).
+ *
+ * It is NOT enough when something writes to `site_content` from *outside* the
+ * running server — a direct SQL statement, or a test process against the same
+ * database. The live server has no way to learn about that write and will keep
+ * serving its cached copy until the `revalidate` backstop expires. That is
+ * expected rather than a bug, and it is why the E2E suites write through the
+ * real actions and why the regression check restarts the server before comparing
+ * renders.
+ *
+ * The same is true of the catalogue tag above, for the same reason.
+ */

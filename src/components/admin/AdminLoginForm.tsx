@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { AdminButton, Field, TextInput } from "@/components/admin/ui/controls";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const ERROR_COPY: Record<string, string> = {
@@ -53,35 +52,42 @@ export function AdminLoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-      <Input
-        id="admin-email"
-        type="email"
-        label="Email"
-        autoComplete="username"
-        required
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
-      <Input
-        id="admin-password"
-        type="password"
-        label="Password"
-        autoComplete="current-password"
-        required
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
+      <Field label="Email" htmlFor="admin-email">
+        <TextInput
+          id="admin-email"
+          type="email"
+          autoComplete="username"
+          required
+          autoFocus
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+      </Field>
+
+      <Field label="Password" htmlFor="admin-password">
+        <TextInput
+          id="admin-password"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+      </Field>
 
       {error && (
-        <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+        <p
+          role="alert"
+          className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2.5 text-[13px] leading-relaxed text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300"
+        >
           {error}
         </p>
       )}
 
-      <Button type="submit" variant="primary" size="md" isLoading={isSubmitting} className="w-full">
-        Sign In
-      </Button>
+      <AdminButton type="submit" variant="primary" disabled={isSubmitting} className="w-full">
+        {isSubmitting ? "Signing in…" : "Sign in"}
+      </AdminButton>
     </form>
   );
 }

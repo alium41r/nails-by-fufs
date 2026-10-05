@@ -1,5 +1,11 @@
 import type { Prisma } from "@/generated/prisma/client";
 
+import {
+  FALLBACK_CURRENCY,
+  formatPrice as formatMoney,
+  pricePlaceholder,
+} from "@/lib/currency";
+
 /**
  * Catalogue view model + mapping rules.
  *
@@ -16,6 +22,11 @@ import type { Prisma } from "@/generated/prisma/client";
  * the rules written in supabase/migrations/20261004114546_catalog_rls.sql have
  * to be restated here: a row is public only when it is active *and* its parent
  * collection is active.
+ *
+ * Archiving is the second visibility rule and it is *only* enforced here —
+ * `archived_at` has no RLS policy, because RLS cannot express "archived rows are
+ * invisible to clients but listable by the admin through the same privileged
+ * connection". Every public read must therefore go through these filters.
  */
 
 /* -------------------------------------------------------------------------- */
@@ -24,27 +35,39 @@ import type { Prisma } from "@/generated/prisma/client";
 
 export const PUBLIC_COLLECTION_FILTER = {
   is_active: true,
+  archived_at: null,
 } as const satisfies Prisma.collectionsWhereInput;
 
 export const PUBLIC_PRODUCT_FILTER = {
   is_active: true,
-  collections: { is_active: true },
+  archived_at: null,
+  // A product is public only when its collection is public. The `is` form (rather
+  // than a nested `where`) is what makes this expressible now that
+  // `collection_id` is nullable: a product with no collection is not in an
+  // active collection, so it is correctly excluded rather than crashing the
+  // relation filter.
+  collections: { is: { is_active: true, archived_at: null } },
 } as const satisfies Prisma.productsWhereInput;
 
 /* -------------------------------------------------------------------------- */
 /* Presentation constants                                                      */
 /* -------------------------------------------------------------------------- */
 
-/**
- * No verified price exists in the project yet, so the storefront keeps showing
- * the same placeholder it showed before the catalogue was database-backed.
- * The database stores no price at all (`price_minor` / `currency` are NULL).
- */
-const PRICE_PLACEHOLDER = "$XX";
 const PRODUCT_PLACEHOLDER_SUBLABEL = "4:5 • PRODUCT SHOT";
 const COLLECTION_PLACEHOLDER_SUBLABEL = "COLLECTION ARCHIVE";
 
-export type PlaceholderRatio = "portrait" | "square" | "classic";
+/**
+ * The aspect ratios a catalogue or content image slot can request.
+ *
+ * Structurally identical to `AspectRatio` in `@/components/media/ImagePlaceholder`
+ * — that component is the only consumer and it already supported all five.
+ * `wide` and `tall` were simply unreachable from catalogue data before, because
+ * the storefront passed a literal ratio in JSX. Now that a content document can
+ * choose the ratio for a slot, the type has to admit them, or the featured
+ * collection's 16:9 lookbook (a `wide` slot since it was built) could not be
+ * expressed.
+ */
+export type PlaceholderRatio = "portrait" | "square" | "classic" | "wide" | "tall";
 
 export interface CataloguePlaceholder {
   label: string;
@@ -119,7 +142,12 @@ export interface ProductRow {
   included: string[];
   price_minor: number | null;
   currency: string | null;
-  collections: { slug: string; title: string };
+  /**
+   * Null when the product is not assigned to a collection — a state the admin
+   * can create now that `collection_id` is nullable, and one the storefront has
+   * to render rather than assume away.
+   */
+  collections: { slug: string; title: string } | null;
 }
 
 export interface ProductImageRow {
@@ -139,10 +167,21 @@ function asLength(value: string): CatalogueProduct["length"] {
   return value === "Short" || value === "Long" ? value : "Medium";
 }
 
-function formatPrice(priceMinor: number | null, currency: string | null): string {
-  if (priceMinor === null || currency === null) return PRICE_PLACEHOLDER;
-
-  return `${currency} ${(priceMinor / 100).toFixed(2)}`;
+/**
+ * The price a customer sees, or the store's placeholder when there is none.
+ *
+ * Delegates to `@/lib/currency`, which owns the one definition of how money is
+ * formatted and what the placeholder looks like. `storeCurrency` is the store's
+ * configured default and is used only to label the *placeholder* — an actual
+ * price always uses the currency stored on the product, and is never converted.
+ */
+function formatPrice(
+  priceMinor: number | null,
+  currency: string | null,
+  storeCurrency: string,
+): string {
+  if (priceMinor === null || currency === null) return pricePlaceholder(storeCurrency);
+  return formatMoney(priceMinor, currency);
 }
 
 /** Public URL for an object in the public catalogue images bucket. */
@@ -210,16 +249,30 @@ function primaryPlaceholderImage(product: ProductRow): CatalogueImage {
   };
 }
 
-export function toProductView(row: ProductRow, imageRows: ProductImageRow[]): CatalogueProduct {
+/**
+ * Maps a catalogue row to the public view model.
+ *
+ * `storeCurrency` is the store's configured default, used only to label the
+ * price placeholder. It defaults to the fallback so existing callers and tests
+ * that construct a view without a content read still behave as before.
+ */
+export function toProductView(
+  row: ProductRow,
+  imageRows: ProductImageRow[],
+  storeCurrency: string = FALLBACK_CURRENCY,
+): CatalogueProduct {
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
     descriptor: row.descriptor,
-    price: formatPrice(row.price_minor, row.currency),
+    price: formatPrice(row.price_minor, row.currency, storeCurrency),
     ...(row.tag === null ? {} : { tag: row.tag }),
-    collectionSlug: row.collections.slug,
-    collectionName: row.collections.title,
+    // An unassigned product has no collection to name or link to. Empty strings
+    // rather than null keep the `string` shape every consumer already expects;
+    // the product page renders "Shop" instead of a collection crumb for these.
+    collectionSlug: row.collections?.slug ?? "",
+    collectionName: row.collections?.title ?? "",
     shape: row.shape,
     length: asLength(row.default_length),
     finish: row.finish,

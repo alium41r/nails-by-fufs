@@ -5,12 +5,7 @@ import { Shell } from "@/components/layout/Shell";
 import { Container } from "@/components/layout/Container";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { contactHero } from "@/data/contact";
-import {
-  BUSINESS_EMAIL_HREF,
-  BUSINESS_PHONE_HREF,
-  businessContactRows,
-  businessDetails,
-} from "@/config/business";
+import { getSiteContent } from "@/lib/site-content";
 import { Sparkles, ArrowRight, Mail, Phone, MapPin, FileText } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -26,7 +21,27 @@ const POLICY_LINKS = [
   { label: "Terms & Conditions", href: "/terms" },
 ];
 
-export default function ContactPage() {
+/**
+ * The studio's public contact details are owner-managed (`site.contact` and
+ * `site.identity`).
+ *
+ * This page previously read the hardcoded `@/config/business`, which meant an
+ * owner who corrected their phone number in the admin would see the *policy*
+ * pages update while this page kept publishing the old one. Both now read the
+ * same document.
+ */
+export default async function ContactPage() {
+  const { identity, contact } = await getSiteContent();
+
+  const emailHref = `mailto:${contact.email}`;
+  const phoneHref = `tel:${contact.phone.replace(/[^\d+]/g, "")}`;
+  const contactRows = [
+    { label: "Email", value: contact.email },
+    { label: "Phone", value: contact.phone },
+    { label: "Address", value: contact.addressLines.join(", ") },
+    { label: "Country", value: contact.country },
+  ];
+
   return (
     <Shell>
       <div className="py-10 sm:py-14 lg:py-20 bg-background">
@@ -80,7 +95,7 @@ export default function ContactPage() {
 
                   <div className="flex flex-col divide-y divide-border/60 border-y border-border/60">
                     <a
-                      href={BUSINESS_EMAIL_HREF}
+                      href={emailHref}
                       className="flex items-center gap-3 py-3.5 group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                     >
                       <span className="w-9 h-9 shrink-0 border border-border bg-surface-subtle flex items-center justify-center text-accent">
@@ -91,13 +106,13 @@ export default function ContactPage() {
                           Email
                         </span>
                         <span className="text-sm text-foreground font-sans group-hover:text-accent transition-colors truncate">
-                          {businessDetails.email}
+                          {contact.email}
                         </span>
                       </span>
                     </a>
 
                     <a
-                      href={BUSINESS_PHONE_HREF}
+                      href={phoneHref}
                       className="flex items-center gap-3 py-3.5 group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                     >
                       <span className="w-9 h-9 shrink-0 border border-border bg-surface-subtle flex items-center justify-center text-accent">
@@ -108,7 +123,7 @@ export default function ContactPage() {
                           Phone
                         </span>
                         <span className="text-sm text-foreground font-sans group-hover:text-accent transition-colors">
-                          {businessDetails.phone}
+                          {contact.phone}
                         </span>
                       </span>
                     </a>
@@ -122,7 +137,7 @@ export default function ContactPage() {
                           Studio
                         </span>
                         <span className="text-sm text-foreground font-sans">
-                          {businessDetails.addressLines.join(", ")}
+                          {contact.addressLines.join(", ")}
                         </span>
                       </span>
                     </div>
@@ -205,10 +220,10 @@ export default function ContactPage() {
                   <dt className="text-[11px] uppercase tracking-wider font-mono text-muted-foreground sm:w-52 shrink-0">
                     Business name
                   </dt>
-                  <dd className="text-sm text-foreground font-sans">{businessDetails.brandName}</dd>
+                  <dd className="text-sm text-foreground font-sans">{identity.name}</dd>
                 </div>
 
-                {businessContactRows().map((row) => (
+                {contactRows.map((row) => (
                   <div
                     key={row.label}
                     className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 px-5 py-3.5"

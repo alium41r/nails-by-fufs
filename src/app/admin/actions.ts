@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { invalidateCatalogue } from "@/lib/catalogue-cache";
 import { getAdminUser } from "@/lib/admin/auth";
 import {
   MAX_TAG_LENGTH,
@@ -126,7 +127,8 @@ export async function updateProductAction(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath(`/admin/products/${id}`);
-  revalidatePath("/shop");
+  // Clears the cached catalogue and every storefront path that renders it.
+  invalidateCatalogue();
   redirect(`/admin/products/${id}?saved=1`);
 }
 
@@ -157,7 +159,7 @@ export async function updateProductPriceAction(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath(`/admin/products/${id}`);
-  revalidatePath("/shop");
+  invalidateCatalogue();
   redirect(`/admin/products/${id}?saved=1`);
 }
 
@@ -185,7 +187,7 @@ export async function updateProductVisibilityAction(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath(`/admin/products/${id}`);
-  revalidatePath("/shop");
+  invalidateCatalogue();
   redirect(`/admin/products/${id}?saved=1`);
 }
 
@@ -275,7 +277,7 @@ export async function finalizeProductImageUpload(input: {
   });
 
   revalidatePath(`/admin/products/${input.productId}`);
-  revalidatePath("/shop");
+  invalidateCatalogue();
   return { ok: true };
 }
 
@@ -291,7 +293,7 @@ export async function setPrimaryProductImageAction(formData: FormData) {
   ]);
 
   revalidatePath(`/admin/products/${productId}`);
-  revalidatePath("/shop");
+  invalidateCatalogue();
   redirect(`/admin/products/${productId}?saved=1`);
 }
 
@@ -303,7 +305,7 @@ export async function updateProductImageAltAction(formData: FormData) {
 
   await getPrisma().product_images.update({ where: { id: imageId }, data: { alt_text: altText } });
   revalidatePath(`/admin/products/${productId}`);
-  revalidatePath("/shop");
+  invalidateCatalogue();
   redirect(`/admin/products/${productId}?saved=1`);
 }
 
@@ -337,7 +339,7 @@ export async function moveProductImageAction(formData: FormData) {
   }
 
   revalidatePath(`/admin/products/${productId}`);
-  revalidatePath("/shop");
+  invalidateCatalogue();
   redirect(`/admin/products/${productId}?saved=1`);
 }
 
@@ -373,7 +375,7 @@ export async function deleteProductImageAction(formData: FormData) {
   }
 
   revalidatePath(`/admin/products/${productId}`);
-  revalidatePath("/shop");
+  invalidateCatalogue();
   redirect(`/admin/products/${productId}?saved=1`);
 }
 
@@ -430,8 +432,7 @@ export async function updateCollectionAction(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath(`/admin/collections/${id}`);
-  revalidatePath("/collections");
-  revalidatePath("/shop");
+  invalidateCatalogue();
   redirect(`/admin/collections/${id}?saved=1`);
 }
 
@@ -500,7 +501,7 @@ export async function finalizeCollectionCoverUpload(input: {
   }
 
   revalidatePath(`/admin/collections/${input.collectionId}`);
-  revalidatePath("/collections");
+  invalidateCatalogue();
   return { ok: true };
 }
 
@@ -522,7 +523,7 @@ export async function removeCollectionCoverAction(formData: FormData) {
   await prisma.collections.update({ where: { id }, data: { cover_image_path: null } });
 
   revalidatePath(`/admin/collections/${id}`);
-  revalidatePath("/collections");
+  invalidateCatalogue();
   redirect(`/admin/collections/${id}?saved=1`);
 }
 

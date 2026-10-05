@@ -14,6 +14,35 @@ export interface ProductCardProps {
   priority?: boolean;
 }
 
+/**
+ * Product cards opt out of `<Link>`'s automatic prefetch.
+ *
+ * ## Why this is not just a preference
+ *
+ * A product detail route is dynamic, so with the default `prefetch="auto"` the
+ * router can only fetch the route's static App Shell — down to the nearest
+ * `loading.js`. It cannot fetch the product content itself. The click therefore
+ * still performs its own full RSC request, and the prefetch is pure overhead.
+ *
+ * That overhead was previously severe: the navigation latency audit measured
+ * nine product prefetches firing the moment `/shop` rendered, each costing a
+ * full server render (400–1276 ms, three database queries against another
+ * region) for a response containing no page content. Those concurrent renders
+ * saturated the Prisma connection pool and degraded real navigations.
+ *
+ * The catalogue cache and the `loading.tsx` boundary have since removed that
+ * cost — a prefetch is now ~15–25 ms and the boundary paints immediately — but
+ * the requests still buy nothing, so a grid of products would keep firing one
+ * useless server render per card on every catalogue page.
+ *
+ * ## Why this is safe
+ *
+ * The remaining navigation cost is a single RSC request for the destination,
+ * which is served from the cached catalogue in ~11 ms, and the route paints its
+ * `loading.tsx` boundary the instant the link is clicked. Prefetching is left
+ * enabled everywhere else — this is scoped to product cards, not disabled
+ * globally.
+ */
 export function ProductCard({ product, className }: ProductCardProps) {
   const merged = useStudioProduct(product);
 
@@ -33,6 +62,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
     >
       <Link
         href={`/product/${merged.slug}`}
+        prefetch={false}
         className={cn(
           "group flex flex-col gap-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent rounded-xs select-none w-full"
         )}

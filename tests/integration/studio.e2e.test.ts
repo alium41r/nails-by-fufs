@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 
-import { actions, setCookieJar } from "./support/driver";
+import { actions, setCookieJar, clearRevalidated, revalidatedPaths, revalidatedUpdates } from "./support/driver";
 import { authCookie } from "./support/cookie";
 import { sessionFor, encodeSessionCookie, adminEmails, assertLiveWritesAllowed } from "./session.mjs";
 import { getStorefrontCatalogue } from "@/lib/catalogue-server";
@@ -847,5 +847,83 @@ describe("collection fields and cover", () => {
     expect((await collectionRow()).cover_image_path).toBeNull();
     const gone = await db.storage.from("product-images").info(path);
     expect(gone.error).not.toBeNull();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Cache invalidation                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The public catalogue is cached across requests, so a Studio write that does
+ * not invalidate it would leave the storefront showing the previous values until
+ * the backstop TTL expired.
+ *
+ * This guards the specific hole that existed before the cache was introduced:
+ * five of the image actions (`finalizeStudioImageUpload`, `reorderStudioImages`,
+ * `setStudioPrimaryImage`, `updateStudioImageAlt`, `deleteStudioImage`) called no
+ * revalidation at all, and no admin action revalidated `/`, `/collections` or
+ * `/search`. That was invisible only because every storefront route was
+ * `force-dynamic` with `no-store`, so nothing could go stale.
+ *
+ * `unstable_cache` is a pass-through in this harness and the revalidation calls
+ * are recorded rather than executed, so what is asserted here is that the write
+ * paths call the invalidation contract — which is the part that can silently rot.
+ */
+describe("catalogue invalidation", () => {
+  /** Every storefront surface a catalogue change can appear on. */
+  const STOREFRONT_PATHS = [
+    "/",
+    "/shop",
+    "/collections",
+    "/search",
+    "/product/[slug]",
+    "/collections/[slug]",
+  ];
+
+  it("a product save expires the catalogue tag and revalidates every storefront path", async () => {
+    const before = await productRow();
+    clearRevalidated();
+
+    const result = await actions.saveStudioProduct({
+      id: productId,
+      expectedUpdatedAt: await productVersion(),
+      name: before.name as string,
+      descriptor: before.descriptor as string,
+      description: before.description as string,
+      price: "",
+      currency: "",
+      shape: before.shape as string,
+      defaultLength: before.default_length as "Short" | "Medium" | "Long",
+      finish: before.finish as string,
+      tag: (before.tag as string) ?? "",
+      included: ((before.included as string[]) ?? []).join("\n"),
+      isActive: before.is_active as boolean,
+      featured: before.featured as boolean,
+      displayOrder: String(before.display_order ?? ""),
+    });
+    expect(result.ok).toBe(true);
+
+    // The data-cache tag, without which a cached catalogue would survive the write.
+    expect(revalidatedUpdates()).toContain("storefront-catalogue");
+
+    // The client router cache and prerendered output for each display surface.
+    const paths = revalidatedPaths();
+    for (const path of STOREFRONT_PATHS) {
+      expect(paths).toContain(path);
+    }
+  });
+
+  it("removing a collection cover invalidates too", async () => {
+    clearRevalidated();
+
+    const result = await actions.removeStudioCover({
+      collectionId,
+      expectedUpdatedAt: await collectionVersion(),
+    });
+    expect(result.ok).toBe(true);
+
+    expect(revalidatedUpdates()).toContain("storefront-catalogue");
+    expect(revalidatedPaths()).toContain("/collections");
   });
 });

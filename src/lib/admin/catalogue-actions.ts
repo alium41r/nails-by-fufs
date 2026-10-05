@@ -1,7 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
+import { invalidateCatalogue } from "@/lib/catalogue-cache";
 import { getAdminUser } from "@/lib/admin/auth";
 import {
   ALLOWED_IMAGE_TYPES,
@@ -89,13 +88,17 @@ async function assertAdmin(): Promise<boolean> {
   return (await getAdminUser()) !== null;
 }
 
-/** Revalidates every storefront surface a catalogue change can appear on. */
-function revalidateCatalogue(productSlug?: string) {
-  revalidatePath("/");
-  revalidatePath("/shop");
-  revalidatePath("/collections");
-  revalidatePath("/search");
-  if (productSlug) revalidatePath(`/product/${productSlug}`);
+/**
+ * Invalidates the cached catalogue after a Studio Mode write.
+ *
+ * Thin alias kept so the call sites below read as intent rather than
+ * mechanism. The actual work — expiring the `storefront-catalogue` data cache
+ * and revalidating every storefront path plus the client router cache — lives in
+ * `@/lib/catalogue-cache`, shared with the admin form actions, so the two write
+ * surfaces cannot drift apart.
+ */
+function revalidateCatalogue() {
+  invalidateCatalogue();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -220,7 +223,7 @@ export async function saveStudioProduct(
     };
   }
 
-  revalidateCatalogue(current.slug);
+  revalidateCatalogue();
   return { ok: true, kind: "saved", state: await loadStudioManagement(), data: { productId: input.id } };
 }
 
@@ -446,6 +449,17 @@ export async function finalizeStudioImageUpload(input: {
     }
   }
 
+  /*
+   * Invalidate the storefront catalogue.
+   *
+   * This call was previously missing from every image action in this file, so a
+   * new or replaced photograph reached the storefront only because each route
+   * was `force-dynamic` with `no-store` and therefore never cached anything.
+   * With the catalogue now cached across requests, an omitted invalidation here
+   * would serve the old gallery until the backstop TTL expired.
+   */
+  revalidateCatalogue();
+
   return {
     ok: true,
     kind: "saved",
@@ -524,6 +538,9 @@ export async function reorderStudioImages(input: {
     return { ok: false, kind: "error", ...asStudioError(logServerError("reorderStudioImages", error)) };
   }
 
+  // Cover position and gallery order both render on the storefront.
+  revalidateCatalogue();
+
   return { ok: true, kind: "saved", state: await loadStudioManagement(), data: {} };
 }
 
@@ -558,6 +575,9 @@ export async function setStudioPrimaryImage(input: {
     return { ok: false, kind: "error", ...asStudioError(logServerError("setStudioPrimaryImage", error)) };
   }
 
+  // The primary image is the product's storefront cover.
+  revalidateCatalogue();
+
   return { ok: true, kind: "saved", state: await loadStudioManagement(), data: {} };
 }
 
@@ -586,6 +606,9 @@ export async function updateStudioImageAlt(input: {
   } catch (error) {
     return { ok: false, kind: "error", ...asStudioError(logServerError("updateStudioImageAlt", error)) };
   }
+
+  // Alt text is rendered on the storefront gallery.
+  revalidateCatalogue();
 
   return { ok: true, kind: "saved", state: await loadStudioManagement(), data: {} };
 }
@@ -639,6 +662,9 @@ export async function deleteStudioImage(input: {
   if (isProductImagePath(image.storage_path, input.productId)) {
     await getReferenceStorage().from(IMAGE_BUCKET).remove([image.storage_path]).catch(() => undefined);
   }
+
+  // A removed photograph (and any promoted cover) changes the storefront.
+  revalidateCatalogue();
 
   return { ok: true, kind: "saved", state: await loadStudioManagement(), data: {} };
 }

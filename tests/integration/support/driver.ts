@@ -5,12 +5,19 @@
  *
  * Only the request-scoped plumbing is substituted:
  *  - next/headers `cookies()`  -> a jar carrying the minted session cookie
- *  - next/cache `revalidatePath` -> recorded, no-op
+ *  - next/cache `revalidatePath` / `updateTag` / `unstable_cache` -> recorded,
+ *    no-op, or a pass-through, so the suite can assert that a write invalidated
+ *    the cached catalogue.
  * Everything else — getAdminUser(), the allowlist, validation, Prisma, Storage,
  * path scoping and the optimistic concurrency predicate — is the production code.
  */
 import { setCookieJar } from "./request-headers";
-import { clearRevalidated, revalidatedPaths } from "./next-cache";
+import {
+  clearRevalidated,
+  revalidatedPaths,
+  revalidatedTags,
+  revalidatedUpdates,
+} from "./next-cache";
 
 import {
   loadStudioState,
@@ -42,4 +49,4 @@ export const actions = {
   removeStudioCover,
 };
 
-export { setCookieJar, clearRevalidated, revalidatedPaths };
+export { setCookieJar, clearRevalidated, revalidatedPaths, revalidatedTags, revalidatedUpdates };

@@ -19,7 +19,9 @@
     "test": "vitest run",
     "db:seed:remote": "supabase db query --linked -f supabase/seed.sql",
     "test:e2e": "vitest run --config vitest.integration.config.mts",
-    "db:drift": "node scripts/prisma-drift-check.mjs"
+    "db:drift": "node scripts/prisma-drift-check.mjs",
+    "db:content:check": "node scripts/checks/restore-seeded-content.mjs --check",
+    "db:content:restore": "node scripts/checks/restore-seeded-content.mjs --all"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

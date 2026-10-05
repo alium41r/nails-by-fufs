@@ -42,18 +42,32 @@ export const metadata: Metadata = {
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getAdminUser();
 
-  // Counts are only read for a signed-in admin: an unauthenticated render of the
-  // login page must not touch the database at all.
-  const counts = user
-    ? await (async () => {
-        const prisma = getPrisma();
-        const [customOrders, appointments] = await Promise.all([
-          prisma.custom_order_requests.count({ where: { status: "pending_review" } }),
-          prisma.appointment_requests.count({ where: { status: "pending_review" } }),
-        ]);
-        return { customOrders, appointments };
-      })()
-    : { customOrders: 0, appointments: 0 };
+  /*
+   * Signed out: render the page with no chrome at all.
+   *
+   * `/admin/login` is the only page reachable without a session — the proxy gates
+   * everything else — so this branch exists for exactly one screen. Rendering the
+   * sidebar around it was wrong twice over: it advertised navigation to pages the
+   * visitor is not allowed to open, and it gave the sign-in form a "Sign out"
+   * button above it, which reads as though they were already signed in.
+   *
+   * Returning the children bare also means an unauthenticated render touches the
+   * database not at all: the counts and the studio name below are only read once
+   * there is a session.
+   */
+  if (!user) {
+    return <>{children}</>;
+  }
+
+  // Outstanding-work counts for the sidebar. Read here, once, and passed down, so
+  // the navigation and the pages it links to cannot disagree.
+  const prisma = getPrisma();
+  const [customOrders, appointments] = await Promise.all([
+    prisma.custom_order_requests.count({ where: { status: "pending_review" } }),
+    prisma.appointment_requests.count({ where: { status: "pending_review" } }),
+  ]);
+  const counts = { customOrders, appointments };
+
 
   // The wordmark is the studio's own name rather than a hardcoded string, so the
   // admin and the storefront agree.
@@ -61,7 +75,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="admin-shell flex min-h-screen bg-background">
-      <AdminSidebar counts={counts} email={user?.email ?? null} />
+      <AdminSidebar counts={counts} email={user.email ?? null} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="hidden border-b border-border/70 lg:block">
@@ -69,28 +83,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <div className="min-w-0">
               <p className="truncate text-[13px] text-muted-foreground">{identity.name}</p>
             </div>
-            {user && (
-              <form action={signOutAction}>
-                <button
-                  type="submit"
-                  className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground"
-                >
-                  Sign out
-                </button>
-              </form>
-            )}
+            <form action={signOutAction}>
+              <button
+                type="submit"
+                className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground"
+              >
+                Sign out
+              </button>
+            </form>
           </div>
         </header>
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8 xl:px-10">
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
             {/*
-              Reads `?saved=` / `?error=` from whichever page redirected here.
-              Wrapped in Suspense because `useSearchParams` suspends during a
-              static prerender, and this layout contains the login page.
+              Reads `?saved=` / `?error=` from whichever page redirected here, so
+              no page has to remember to place it. Wrapped in Suspense because
+              `useSearchParams` suspends during a static prerender.
             */}
             <Suspense fallback={null}>
-              <AdminNoticeFromUrl />
+              <AdminNotice />
             </Suspense>
 
             {children}
@@ -99,15 +111,4 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </div>
     </div>
   );
-}
-
-/**
- * Bridges the redirect parameters into `<AdminNotice>`.
- *
- * The notice reads `useSearchParams` itself; this wrapper exists only so the
- * layout can place it inside a Suspense boundary without the layout itself
- * becoming a client boundary.
- */
-async function AdminNoticeFromUrl() {
-  return <AdminNotice />;
 }

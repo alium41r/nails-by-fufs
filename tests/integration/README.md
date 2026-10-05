@@ -29,6 +29,29 @@ outright when `NODE_ENV=production`. That is deliberate — an accidental
 E2E_ALLOW_LIVE_WRITES=1 npm run test:e2e
 ```
 
+## If a run is killed
+
+These suites capture the catalogue and `site_content` at the start and write them
+back at the end, which is what makes them non-destructive. The consequence is that
+a run killed mid-flight (timeout, Ctrl-C, dropped connection) leaves its *current*
+state in place, and the next run captures that as its baseline — so the damage
+becomes sticky and every later run faithfully preserves it.
+
+Check for drift from the seed and repair it before re-running:
+
+```bash
+node scripts/checks/restore-seeded-content.mjs --check   # report, changes nothing
+node scripts/checks/restore-seeded-content.mjs --all     # repair from the seed
+```
+
+`content.e2e.test.ts` also refuses to start on a blanked announcement or a
+non-shipped default currency, and names this command, so the failure is explicit
+rather than silent.
+
+Note that `supabase db query -f supabase/migrations/…site_content.sql` does **not**
+fix this: the seed uses `on conflict (key) do nothing` on purpose, so that
+re-applying it can never revert the owner's edits.
+
 ## How they stay reversible
 
 - The catalogue is captured before the first write and written back **before**

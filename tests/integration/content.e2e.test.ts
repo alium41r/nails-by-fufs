@@ -172,6 +172,48 @@ beforeAll(async () => {
   await client.connect();
   baseline = await capture();
 
+  /*
+   * Refuse to run on a database the previous run damaged.
+   *
+   * These suites capture the catalogue and content at the start and write them
+   * back at the end. That is what makes them non-destructive — and it means a run
+   * that is *killed* mid-flight (timeout, Ctrl-C, dropped connection) leaves the
+   * snapshot it is restoring on the next run as the damaged state, so the damage
+   * becomes sticky and each later run faithfully preserves it.
+   *
+   * That happened once: `site.announcement` was left blanked and the default
+   * currency left as a test value. The storefront falls back to the code defaults,
+   * so nothing looked broken — the stored rows had simply drifted from the seed.
+   *
+   * So the baseline is checked for the two shapes a killed run leaves behind, and
+   * the suite fails with the fix rather than capturing them as "correct".
+   * `scripts/checks/restore-seeded-content.mjs` repairs them from the seed.
+   */
+  const announcementText = String(
+    (baseline.content.find((row) => row.key === "site.announcement")?.value as
+      | { text?: string }
+      | undefined)?.text ?? "",
+  );
+  const currencyDefault = String(
+    (baseline.content.find((row) => row.key === "site.currency")?.value as
+      | { default?: string }
+      | undefined)?.default ?? "",
+  );
+
+  if (announcementText.trim().length === 0) {
+    throw new Error(
+      "site_content.site.announcement.text is empty — a previous run was killed before it " +
+        "restored. Repair it first: node scripts/checks/restore-seeded-content.mjs site.announcement",
+    );
+  }
+  if (currencyDefault !== "USD") {
+    throw new Error(
+      `site_content.site.currency.default is "${currencyDefault}" but the seed ships "USD" — ` +
+        "a previous run was killed before it restored. Repair it first: " +
+        "node scripts/checks/restore-seeded-content.mjs site.currency",
+    );
+  }
+
   // Restore before the run too, so an earlier interrupted run cannot leave the
   // assertions below measuring the wrong baseline.
   await restore(baseline);

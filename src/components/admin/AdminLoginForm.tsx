@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { AdminButton, Field, TextInput } from "@/components/admin/ui/controls";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -15,7 +15,6 @@ const ERROR_COPY: Record<string, string> = {
 };
 
 export function AdminLoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/admin";
   const initialError = searchParams.get("error");
@@ -42,8 +41,22 @@ export function AdminLoginForm() {
         return;
       }
 
-      router.replace(next.startsWith("/admin") ? next : "/admin");
-      router.refresh();
+      /*
+       * A full navigation, not `router.replace()`.
+       *
+       * The destination is gated by `src/proxy.ts`, which decides from the session
+       * *cookie* — a cookie this request has only just written. A client-side
+       * transition asks the App Router to fetch the route, and its cache already
+       * holds the pre-sign-in answer for `/admin` (a redirect back to this page),
+       * so the owner was signed in but left staring at the sign-in form.
+       *
+       * A document-level navigation re-runs the proxy with the new cookie and
+       * cannot be served from that cache. It is also the honest thing to do here:
+       * every server component in the admin tree has to be re-rendered with the
+       * session that now exists.
+       */
+      const target = next.startsWith("/admin") ? next : "/admin";
+      window.location.replace(target);
     } catch {
       setError(ERROR_COPY.not_configured);
     } finally {

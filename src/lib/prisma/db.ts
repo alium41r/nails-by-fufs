@@ -1,7 +1,6 @@
 import "server-only";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
 
 import { PrismaClient } from "@/generated/prisma/client";
 import {
@@ -9,7 +8,6 @@ import {
   databaseSslConfig,
   reportDatabaseTlsMode,
 } from "@/lib/prisma/tls";
-import { recordCount, recordStage } from "@/lib/perf/catalogue-timing";
 
 /**
  * Privileged, server-only Prisma access to the Supabase catalogue.
@@ -85,61 +83,19 @@ function createPrismaClient() {
   // quickly instead of being kept for the driver's 10-second default — a
   // serverless instance is frozen between requests, and a connection held across
   // a freeze is a Supavisor slot used for nothing.
-  const pool = new Pool({
-    connectionString: connectionStringWithoutSslParams(connectionString),
-    max: 3,
-    connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
-    idleTimeoutMillis: IDLE_TIMEOUT_MS,
-    // Per-connection, so a runaway query cannot hold a pooler slot or a
-    // serverless invocation indefinitely.
-    statement_timeout: STATEMENT_TIMEOUT_MS,
-    query_timeout: STATEMENT_TIMEOUT_MS,
-    ssl,
+  return new PrismaClient({
+    adapter: new PrismaPg({
+      connectionString: connectionStringWithoutSslParams(connectionString),
+      max: 3,
+      connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+      idleTimeoutMillis: IDLE_TIMEOUT_MS,
+      // Per-connection, so a runaway query cannot hold a pooler slot or a
+      // serverless invocation indefinitely.
+      statement_timeout: STATEMENT_TIMEOUT_MS,
+      query_timeout: STATEMENT_TIMEOUT_MS,
+      ssl,
+    }),
   });
-
-  // The pool is built here rather than from a config object so it can be
-  // observed; `PrismaPg` uses a pool it is handed as-is, so behaviour is
-  // unchanged. See `instrumentPool`.
-  instrumentPool(pool);
-
-  return new PrismaClient({ adapter: new PrismaPg(pool) });
-}
-
-/**
- * Attaches sampling hooks to the connection pool.
- *
- * A no-op unless the request is being sampled (see
- * `@/lib/perf/catalogue-timing`), so the ordinary production path is untouched.
- *
- * Two things are recorded, kept distinct so the two causes stay separable:
- *
- * - `pool-acquire` — cumulative wall time spent in `pool.connect()`. This is the
- *   outer bound: it covers both queueing for an existing client and the full
- *   TCP + TLS + Supavisor-authentication path when none is available.
- * - `conn` (count) — how many times the pool actually opened a new connection
- *   during the request, read from the driver's own `connect` event rather than
- *   inferred.
- *
- * Dividing the acquire time by the connection count distinguishes "the pool was
- * contended" from "opening a connection is expensive"; a request that acquires
- * once and opens one connection is pure setup cost, not queueing.
- */
-function instrumentPool(pool: Pool): void {
-  // Counted from the driver's own `connect` event, which fires only for a real
-  // new connection, so the count cannot be inflated by pool reuse.
-  pool.on("connect", () => recordCount("conn"));
-
-  const originalConnect = pool.connect.bind(pool);
-  pool.connect = ((...args: unknown[]) => {
-    const started = performance.now();
-    const pending = originalConnect(...(args as []));
-    // Record on settle either way: a failed acquisition is still time spent.
-    void Promise.resolve(pending).then(
-      () => recordStage("pool-acquire", performance.now() - started),
-      () => recordStage("pool-acquire", performance.now() - started),
-    );
-    return pending;
-  }) as typeof pool.connect;
 }
 
 type PrismaClientSingleton = ReturnType<typeof createPrismaClient>;

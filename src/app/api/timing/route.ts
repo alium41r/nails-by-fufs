@@ -4,6 +4,8 @@ import {
   clearSamples,
   recentSamples,
   TIMING_ENDPOINT_ENV,
+  TIMING_REQUEST_HEADER,
+  timingEnabled,
   timingReport,
 } from "@/lib/perf/catalogue-timing";
 
@@ -40,17 +42,32 @@ function enabled(): boolean {
   return process.env[TIMING_ENDPOINT_ENV] === "1";
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   if (!enabled()) {
     return new NextResponse("Not found", { status: 404 });
   }
 
   const report = timingReport();
+
   return NextResponse.json(
     {
       note:
         "Per-process stage timings for the public catalogue read. Samples are collected only " +
         "for requests carrying the x-nbf-timing: 1 request header. Durations in milliseconds.",
+      /*
+       * Diagnostics.
+       *
+       * Distinguishes "the sampled request landed on a different instance than
+       * this readout" (in which case the numbers are simply elsewhere) from
+       * "sampling never runs in this deployment" (in which case no amount of
+       * readout will ever see a sample). Without these two facts the empty
+       * buffer is ambiguous.
+       */
+      deployment: process.env.VERCEL_DEPLOYMENT_ID ?? null,
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+      timingEnabled: timingEnabled(),
+      requestId: request.headers.get("x-vercel-id") ?? null,
+      probeHeaderSeen: request.headers.get(TIMING_REQUEST_HEADER) ?? null,
       instanceRegion: process.env.VERCEL_REGION ?? null,
       ...report,
       recent: recentSamples().slice(-25),

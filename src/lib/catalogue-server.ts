@@ -2,12 +2,24 @@ import "server-only";
 
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
+import { headers } from "next/headers";
 
 import { getPrisma } from "@/lib/prisma/db";
 import {
   CATALOGUE_CACHE_SECONDS,
   CATALOGUE_CACHE_TAG,
 } from "@/lib/catalogue-cache";
+import {
+  beginTiming,
+  finishTiming,
+  isTiming,
+  queryStagesRecorded,
+  recordCount,
+  recordStage,
+  TIMING_REQUEST_HEADER,
+  timeStage,
+  timingEnabled,
+} from "@/lib/perf/catalogue-timing";
 import {
   PUBLIC_COLLECTION_FILTER,
   PUBLIC_PRODUCT_FILTER,
@@ -70,60 +82,74 @@ const readCatalogue = unstable_cache(
     const prisma = getPrisma();
 
     const [collectionRows, productRows] = await Promise.all([
-      prisma.collections.findMany({
-        where: PUBLIC_COLLECTION_FILTER,
-        orderBy: [{ display_order: { sort: "asc", nulls: "last" } }, { slug: "asc" }],
-        select: {
-          cover_image_path: true,
-          slug: true,
-          title: true,
-          subtitle: true,
-          description: true,
-          tag: true,
-          featured: true,
-        },
-      }),
-      prisma.products.findMany({
-        where: PUBLIC_PRODUCT_FILTER,
-        orderBy: [{ display_order: { sort: "asc", nulls: "last" } }, { slug: "asc" }],
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          descriptor: true,
-          description: true,
-          shape: true,
-          default_length: true,
-          finish: true,
-          tag: true,
-          included: true,
-          price_minor: true,
-          currency: true,
-          collections: { select: { slug: true, title: true } },
-        },
-      }),
+      timeStage("q-collections", () =>
+        prisma.collections.findMany({
+          where: PUBLIC_COLLECTION_FILTER,
+          orderBy: [{ display_order: { sort: "asc", nulls: "last" } }, { slug: "asc" }],
+          select: {
+            cover_image_path: true,
+            slug: true,
+            title: true,
+            subtitle: true,
+            description: true,
+            tag: true,
+            featured: true,
+          },
+        }),
+      ),
+      timeStage("q-products", () =>
+        prisma.products.findMany({
+          where: PUBLIC_PRODUCT_FILTER,
+          orderBy: [{ display_order: { sort: "asc", nulls: "last" } }, { slug: "asc" }],
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            descriptor: true,
+            description: true,
+            shape: true,
+            default_length: true,
+            finish: true,
+            tag: true,
+            included: true,
+            price_minor: true,
+            currency: true,
+            collections: { select: { slug: true, title: true } },
+          },
+        }),
+      ),
     ]);
 
     const productIds = productRows.map((row) => row.id);
 
+    /*
+     * The dependent image read.
+     *
+     * This cannot be issued in the `Promise.all` above because it needs the
+     * product ids, so it is a second sequential round trip. It is timed as its
+     * own stage precisely so its cost can be compared against a round trip
+     * rather than guessed at.
+     */
     const imageRows: ProductImageRow[] =
       productIds.length === 0
         ? []
-        : await prisma.product_images.findMany({
-            where: {
-              product_id: { in: productIds },
-              products: { is_active: true, collections: { is_active: true } },
-            },
-            orderBy: [{ sort_order: "asc" }, { id: "asc" }],
-            select: {
-              id: true,
-              product_id: true,
-              storage_path: true,
-              alt_text: true,
-              sort_order: true,
-              is_primary: true,
-            },
-          });
+        : await timeStage("q-images", () =>
+            prisma.product_images.findMany({
+              where: {
+                product_id: { in: productIds },
+                products: { is_active: true, collections: { is_active: true } },
+              },
+              orderBy: [{ sort_order: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                product_id: true,
+                storage_path: true,
+                alt_text: true,
+                sort_order: true,
+                is_primary: true,
+              },
+            }),
+          );
 
     const imagesByProduct = new Map<string, ProductImageRow[]>();
     for (const image of imageRows) {
@@ -132,13 +158,50 @@ const readCatalogue = unstable_cache(
       else imagesByProduct.set(image.product_id, [image]);
     }
 
-    return {
+    return timeStage("transform", async () => ({
       collections: collectionRows.map(toCollectionView),
       products: productRows.map((row) => toProductView(row, imagesByProduct.get(row.id) ?? [])),
-    };
+    }));
   },
   [CATALOGUE_CACHE_TAG],
   { tags: [CATALOGUE_CACHE_TAG], revalidate: CATALOGUE_CACHE_SECONDS },
 );
 
-export const getStorefrontCatalogue = cache(readCatalogue);
+/**
+ * The storefront's read entry point, wrapped so cache hits and misses are
+ * distinguishable and the whole call is timed.
+ *
+ * `unstable_cache` itself takes measurable time on a hit (the stored payload is
+ * deserialized), and a hit versus a miss is the difference we care about, so the
+ * wrapper records which one happened plus the total.
+ *
+ * Sampling is opt-in per request via `x-nbf-timing`, so a normal visitor's
+ * request does no timing work at all.
+ */
+export const getStorefrontCatalogue = cache(async (): Promise<StorefrontCatalogue> => {
+  if (!isTiming()) {
+    // Both the environment switch and the request header are required, so an
+    // ordinary request does no timing work even on a timing-enabled deployment.
+    if (!timingEnabled()) return readCatalogue();
+    const incoming = await headers();
+    if (incoming.get(TIMING_REQUEST_HEADER) !== "1") return readCatalogue();
+    beginTiming();
+  }
+
+  const started = performance.now();
+  const result = await readCatalogue();
+
+  recordStage("catalogue-total", performance.now() - started);
+  /*
+   * A miss runs the query stages inside `readCatalogue`, which record themselves
+   * above; a hit runs none of them. Their presence is therefore enough to label
+   * the outcome without a second clock.
+   */
+  recordCount(queryStagesRecorded() ? "cache-miss" : "cache-hit");
+
+  // Filed inline rather than from `after()`, which runs detached and would lose
+  // the request-scoped store.
+  finishTiming();
+
+  return result;
+});

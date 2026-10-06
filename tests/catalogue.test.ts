@@ -106,15 +106,14 @@ describe("toProductView", () => {
     });
   });
 
-  it("shows the existing price placeholder while the database holds no price", () => {
-    expect(toProductView(productRow({ price_minor: null, currency: null }), []).price).toBe("$XX");
+  it("shows the PKR price placeholder while a set has no price", () => {
+    expect(toProductView(productRow({ price_minor: null, currency: null }), []).price).toBe("PKR XX");
   });
 
-  it("formats a real price once one exists, and ignores a half-set price", () => {
-    expect(toProductView(productRow({ price_minor: 4500, currency: "USD" }), []).price).toBe(
-      "USD 45.00",
+  it("formats a real price in PKR", () => {
+    expect(toProductView(productRow({ price_minor: 4500, currency: "PKR" }), []).price).toBe(
+      "PKR 45.00",
     );
-    expect(toProductView(productRow({ price_minor: 4500, currency: null }), []).price).toBe("$XX");
   });
 
   it("omits the tag instead of rendering null", () => {

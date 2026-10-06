@@ -2,8 +2,7 @@ import Link from "next/link";
 
 import { requireAdmin } from "@/lib/admin/auth";
 import { getPrisma } from "@/lib/prisma/db";
-import { isPriced, pricePlaceholder } from "@/lib/currency";
-import { getSiteBasics } from "@/lib/site-content";
+import { isPriced, pricePlaceholder, STORE_CURRENCY } from "@/lib/currency";
 import { AdminPageHeader, AdminSegmentedNav } from "@/components/admin/ui/primitives";
 import { AdminButton } from "@/components/admin/ui/controls";
 import { CatalogueProducts } from "@/components/admin/catalogue/CatalogueProducts";
@@ -108,8 +107,7 @@ export default async function AdminCataloguePage({
 
   const prisma = getPrisma();
 
-  const [{ defaultCurrency }, collections, products] = await Promise.all([
-    getSiteBasics(),
+  const [collections, products] = await Promise.all([
     prisma.collections.findMany({
       orderBy: [{ display_order: { sort: "asc", nulls: "last" } }, { title: "asc" }],
       select: {
@@ -171,7 +169,7 @@ export default async function AdminCataloguePage({
    */
   const productRows: CatalogueProductRow[] = products.map((product) => {
     const images = imagesByProduct.get(product.id);
-    const priced = isPriced(product.price_minor, product.currency);
+    const priced = isPriced(product.price_minor);
     const archived = product.archived_at !== null;
     const hiddenCollection = product.collections
       ? !product.collections.is_active || product.collections.archived_at !== null
@@ -198,8 +196,8 @@ export default async function AdminCataloguePage({
       collectionTitle: product.collections?.title ?? null,
       priced,
       priceLabel: priced
-        ? `${product.currency} ${((product.price_minor ?? 0) / 100).toFixed(2)}`
-        : pricePlaceholder(defaultCurrency),
+        ? `${STORE_CURRENCY} ${((product.price_minor ?? 0) / 100).toFixed(2)}`
+        : pricePlaceholder(),
       imagePath: images?.first ?? null,
       imageCount: images?.count ?? 0,
       updatedAt: product.updated_at.toISOString(),

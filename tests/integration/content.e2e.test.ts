@@ -186,11 +186,14 @@ beforeAll(async () => {
    * the damaged snapshot was never restored and every later run kept re-adopting
    * it. A guard that blocks the repair it is asking for is a deadlock.
    *
-   * So the baseline is healed instead of refused. Only two fields can be damaged
-   * this way and both have an unambiguous intended value: the announcement text
-   * must be non-empty, and the default currency is shipped as USD. Nothing is
-   * invented — an empty announcement falls back to the wording the storefront
-   * already displays, and the currency is the value the migration seeds.
+   * So the baseline is healed instead of refused. The announcement text has an
+   * unambiguous intended value — the wording the storefront already displays —
+   * so an empty one is written back. Nothing is invented.
+   *
+   * A leftover `site.currency` row is the other repairable case: the store prices
+   * in PKR only, so the setting was removed and the row must not exist. An earlier
+   * run of this suite, or a database migrated from before the change, can leave one
+   * behind, and it is deleted rather than preserved.
    *
    * `scripts/checks/restore-seeded-content.mjs` is still the general-purpose
    * repair, and `--check` reports deeper drift that this does not cover.
@@ -212,16 +215,12 @@ beforeAll(async () => {
     }
   }
 
-  const currency = contentRow("site.currency");
-  if (currency && typeof currency.value === "object" && currency.value !== null) {
-    const asRecord = currency.value as { default?: string };
-    if (asRecord.default !== DEFAULT_SITE_CONTENT.currency.default) {
-      asRecord.default = DEFAULT_SITE_CONTENT.currency.default;
-      await sql(`update site_content set value = $1::jsonb where key = 'site.currency'`, [
-        JSON.stringify(asRecord),
-      ]);
-      healed.push("site.currency.default");
-    }
+  // The retired currency setting. Deleted from the live table and dropped from the
+  // in-memory baseline, so `restore` cannot write it back at the end of the run.
+  if (contentRow("site.currency")) {
+    await sql(`delete from site_content where key = 'site.currency'`);
+    baseline.content = baseline.content.filter((row) => row.key !== "site.currency");
+    healed.push("site.currency (removed)");
   }
 
   if (healed.length > 0) {
@@ -324,7 +323,6 @@ describe("storefront content", () => {
       addressLines: "Line one\nLine two",
       country: "Pakistan",
       jurisdiction: "Pakistan",
-      defaultCurrency: "PKR",
       socials: [{ label: "Instagram", href: "https://instagram.com/e2e" }],
     });
 
@@ -336,26 +334,20 @@ describe("storefront content", () => {
     const contact = await contentRow(CONTENT_KEYS.contact);
     expect(contact?.value.addressLines).toEqual(["Line one", "Line two"]);
 
-    const currency = await contentRow(CONTENT_KEYS.currency);
-    expect(currency?.value.default).toBe("PKR");
+    // The retired currency setting is never written back.
+    expect(await contentRow("site.currency")).toBeUndefined();
 
     const socials = await contentRow(CONTENT_KEYS.socials);
     expect(Array.isArray(socials?.value)).toBe(true);
     expect(socials?.value).toHaveLength(1);
   }, 120_000);
 
-  it("rejects a malformed email and a malformed currency rather than publishing them", async () => {
+  it("rejects a malformed email rather than publishing it", async () => {
     const badEmail = await actions.saveStoreSettings({
-      ...settings("USD"),
+      ...settings(),
       email: "not-an-email",
     });
     expect(badEmail.ok).toBe(false);
-
-    const badCurrency = await actions.saveStoreSettings({
-      ...settings("DOLLARS"),
-      email: "ok@example.com",
-    });
-    expect(badCurrency.ok).toBe(false);
   }, 120_000);
 
   it("edits a policy page and restores it", async () => {
@@ -652,8 +644,8 @@ describe("catalogue lifecycle", () => {
   }, 150_000);
 });
 
-/** A settings payload with a variable currency, for the validation cases. */
-function settings(defaultCurrency: string) {
+/** A complete settings payload. There is no currency field: the store is PKR. */
+function settings() {
   return {
     name: DEFAULT_IDENTITY.name,
     shortName: DEFAULT_IDENTITY.shortName,
@@ -669,7 +661,6 @@ function settings(defaultCurrency: string) {
     addressLines: "Somewhere",
     country: "Pakistan",
     jurisdiction: "Pakistan",
-    defaultCurrency,
     socials: [],
   };
 }

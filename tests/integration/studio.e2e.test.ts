@@ -192,7 +192,6 @@ describe("product text edit", () => {
       descriptor: "E2E descriptor",
       description: "E2E description body.",
       price: "",
-      currency: "",
       shape: "Coffin",
       defaultLength: "Long",
       finish: "E2E Finish",
@@ -235,7 +234,6 @@ describe("product text edit", () => {
       descriptor: original.descriptor as string,
       description: original.description as string,
       price: "",
-      currency: "",
       shape: original.shape as string,
       defaultLength: original.default_length as string,
       finish: original.finish as string,
@@ -270,7 +268,6 @@ describe("price set and cleared", () => {
       descriptor: before.descriptor as string,
       description: before.description as string,
       price: "45.50",
-      currency: "USD",
       shape: before.shape as string,
       defaultLength: before.default_length as string,
       finish: before.finish as string,
@@ -285,16 +282,18 @@ describe("price set and cleared", () => {
 
     const after = await productRow();
     expect(after.price_minor).toBe(4550);
-    expect(after.currency).toBe("USD");
+    // The client never states a currency; the server writes the store's.
+    expect(after.currency).toBe("PKR");
 
-    // order-server.ts refuses a product whose price pair is incomplete; a
-    // complete pair is exactly what makes this checkout-eligible.
+    // order-server.ts refuses a product that is unpriced or priced in anything
+    // but PKR; the server-derived code is exactly what makes this
+    // checkout-eligible.
     expect(after.price_minor).not.toBeNull();
-    expect(after.currency).toMatch(/^[A-Z]{3}$/);
+    expect(after.currency).toBe("PKR");
 
     const catalogue = await getStorefrontCatalogue();
     const product = catalogue.products.find((p) => p.slug === PRODUCT_SLUG)!;
-    expect(product.price).toBe("USD 45.50");
+    expect(product.price).toBe("PKR 45.50");
   });
 
   it("clears the price and the product becomes non-checkout-eligible again", async () => {
@@ -307,7 +306,6 @@ describe("price set and cleared", () => {
       descriptor: before.descriptor as string,
       description: before.description as string,
       price: "",
-      currency: "",
       shape: before.shape as string,
       defaultLength: before.default_length as string,
       finish: before.finish as string,
@@ -325,10 +323,21 @@ describe("price set and cleared", () => {
     expect(after.currency).toBeNull();
 
     const catalogue = await getStorefrontCatalogue();
-    expect(catalogue.products.find((p) => p.slug === PRODUCT_SLUG)?.price).toBe("$XX");
+    expect(catalogue.products.find((p) => p.slug === PRODUCT_SLUG)?.price).toBe("PKR XX");
   });
 
-  it("rejects a half-set price pair", async () => {
+  it("rejects a price it cannot read, and writes nothing", async () => {
+    /*
+     * The old shape of this test submitted a "half-set pair" — a price with no
+     * currency, or a currency with no price — and expected the write to be
+     * refused. That state is no longer *expressible*: the currency is not a
+     * client input, so the server derives PKR from the presence of an amount and
+     * the two can never disagree.
+     *
+     * `products_price_pair` remains in the database as the guard for anything
+     * that bypasses the application (a psql session, an import); what this test
+     * still covers is the amount itself, which is the only part a client controls.
+     */
     const before = await productRow();
     const result = await actions.saveStudioProduct({
       id: productId,
@@ -336,8 +345,7 @@ describe("price set and cleared", () => {
       name: before.name as string,
       descriptor: before.descriptor as string,
       description: before.description as string,
-      price: "10.00",
-      currency: "",
+      price: "not a number",
       shape: before.shape as string,
       defaultLength: before.default_length as string,
       finish: before.finish as string,
@@ -351,8 +359,10 @@ describe("price set and cleared", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.kind).toBe("invalid");
-    // Nothing was written.
-    expect((await productRow()).price_minor).toBeNull();
+    // Nothing was written — not the amount, and not a currency either.
+    const after = await productRow();
+    expect(after.price_minor).toBeNull();
+    expect(after.currency).toBeNull();
   });
 });
 
@@ -371,7 +381,6 @@ describe("visibility flags", () => {
       descriptor: before.descriptor as string,
       description: before.description as string,
       price: "",
-      currency: "",
       shape: before.shape as string,
       defaultLength: before.default_length as string,
       finish: before.finish as string,
@@ -411,7 +420,6 @@ describe("visibility flags", () => {
       descriptor: before.descriptor as string,
       description: before.description as string,
       price: "",
-      currency: "",
       shape: before.shape as string,
       defaultLength: before.default_length as string,
       finish: before.finish as string,
@@ -632,7 +640,6 @@ describe("optimistic concurrency", () => {
       descriptor: loaded.descriptor as string,
       description: loaded.description as string,
       price: "",
-      currency: "",
       shape: loaded.shape as string,
       defaultLength: loaded.default_length as string,
       finish: loaded.finish as string,
@@ -652,7 +659,6 @@ describe("optimistic concurrency", () => {
       descriptor: "",
       description: "",
       price: "",
-      currency: "",
       shape: "Almond",
       defaultLength: "Medium",
       finish: "",
@@ -892,7 +898,6 @@ describe("catalogue invalidation", () => {
       descriptor: before.descriptor as string,
       description: before.description as string,
       price: "",
-      currency: "",
       shape: before.shape as string,
       defaultLength: before.default_length as "Short" | "Medium" | "Long",
       finish: before.finish as string,

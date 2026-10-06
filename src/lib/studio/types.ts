@@ -4,8 +4,8 @@ export interface ProductDraft {
   name?: string;
   descriptor?: string;
   description?: string;
+  /** Minor units (paisa), or null for "no price". The currency is always PKR. */
   priceMinor?: number | null;
-  currency?: string | null;
   shape?: string;
   length?: "Short" | "Medium" | "Long";
   finish?: string;

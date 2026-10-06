@@ -11,6 +11,18 @@ export interface ImagePlaceholderProps
   interactive?: boolean;
   /** Real image URL. When set, the photograph replaces the placeholder frame. */
   src?: string | null;
+  /**
+   * Accessible description of the photograph.
+   *
+   * Deliberately separate from `label`, which is the caption drawn on the *empty*
+   * frame. Conflating the two made every owner-written "Photo description" a
+   * no-op — the alt text came from the placeholder caption instead, so an image
+   * that failed to load announced "Featured Hand Editorial" rather than the
+   * description the owner had actually written.
+   *
+   * Falls back to `aria-label` and then `label`, so existing callers are unchanged.
+   */
+  alt?: string;
 }
 
 export function ImagePlaceholder({
@@ -20,6 +32,7 @@ export function ImagePlaceholder({
   sublabel,
   interactive = false,
   src = null,
+  alt,
   ...props
 }: ImagePlaceholderProps) {
   const ratioClasses: Record<AspectRatio, string> = {
@@ -56,8 +69,9 @@ export function ImagePlaceholder({
         <img
           src={src}
           // An aria-label on the wrapper div of a plain image is not announced,
-          // so the caller's label becomes the image's accessible name.
-          alt={typeof props["aria-label"] === "string" ? props["aria-label"] : label}
+          // so the caller's photo description becomes the image's accessible
+          // name; `label` is only the last resort.
+          alt={alt ?? (typeof props["aria-label"] === "string" ? props["aria-label"] : label)}
           className="absolute inset-0 h-full w-full object-cover"
           loading="lazy"
         />

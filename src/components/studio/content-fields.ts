@@ -149,15 +149,6 @@ export const CONTENT_FIELD_GROUPS: Record<string, FieldGroup[]> = {
     },
   ],
 
-  [CONTENT_KEYS.currency]: [
-    {
-      title: "Default currency",
-      fields: [
-        { path: "default", label: "Currency new prices start in", kind: "text", hint: "Does not change prices that are already set." },
-      ],
-    },
-  ],
-
   [CONTENT_KEYS.socials]: [
     {
       title: "Social links",
@@ -260,8 +251,15 @@ export const CONTENT_FIELD_GROUPS: Record<string, FieldGroup[]> = {
     },
     { title: "Link", fields: CTA("cta", "Link", "Goes to") },
     {
-      title: "The steps",
-      fields: [{ path: "steps", label: "Step", kind: "records" }],
+      title: "The guide cards",
+      fields: [
+        {
+          path: "links",
+          label: "Guide card",
+          kind: "records",
+          hint: "Each card is a link to one page. A card with no title or no destination is not shown.",
+        },
+      ],
     },
   ],
 

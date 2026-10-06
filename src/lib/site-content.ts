@@ -78,20 +78,19 @@ export const getSiteContent = cache(async (): Promise<SiteContent> => {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Identity, contact and currency in one call.
+ * Identity and contact in one call.
  *
- * Split out because these three are needed by surfaces that render no storefront
- * content at all — `generateMetadata`, the policy pages' business block, the
- * checkout summary's currency — and reading the whole tree for a brand name
- * makes those call sites read as if they depend on more than they do.
+ * Split out because these two are needed by surfaces that render no storefront
+ * content at all — `generateMetadata` and the policy pages' business block — and
+ * reading the whole tree for a brand name makes those call sites read as if they
+ * depend on more than they do.
  */
 export const getSiteBasics = cache(
-  async (): Promise<{ identity: SiteIdentity; contact: SiteContact; defaultCurrency: string }> => {
+  async (): Promise<{ identity: SiteIdentity; contact: SiteContact }> => {
     const content = await getSiteContent();
     return {
       identity: content.identity,
       contact: content.contact,
-      defaultCurrency: content.currency.default,
     };
   },
 );
@@ -198,7 +197,6 @@ export const WRITABLE_CONTENT_KEYS: readonly string[] = [
   CONTENT_KEYS.contact,
   CONTENT_KEYS.socials,
   CONTENT_KEYS.announcement,
-  CONTENT_KEYS.currency,
   CONTENT_KEYS.navMain,
   CONTENT_KEYS.navMobile,
   CONTENT_KEYS.navFooter,

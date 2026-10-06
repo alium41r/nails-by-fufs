@@ -59,7 +59,6 @@ export function contentDocumentMeta(): { key: string; label: string; path: strin
     { key: CONTENT_KEYS.announcement, label: "Announcement bar", path: "/" },
     { key: CONTENT_KEYS.identity, label: "Site name and sharing", path: "/" },
     { key: CONTENT_KEYS.contact, label: "Contact details", path: "/contact" },
-    { key: CONTENT_KEYS.currency, label: "Default currency", path: "/shop" },
     { key: CONTENT_KEYS.socials, label: "Social links", path: "/" },
     { key: CONTENT_KEYS.navMain, label: "Header menu", path: "/" },
     { key: CONTENT_KEYS.navMobile, label: "Mobile menu", path: "/" },
@@ -69,7 +68,7 @@ export function contentDocumentMeta(): { key: string; label: string; path: strin
     { key: CONTENT_KEYS.featuredCollection, label: "Homepage featured collection", path: "/" },
     { key: CONTENT_KEYS.productPreview, label: "Homepage shop preview", path: "/" },
     { key: CONTENT_KEYS.customFeature, label: "Homepage bespoke feature", path: "/" },
-    { key: CONTENT_KEYS.howItWorks, label: "Homepage process steps", path: "/" },
+    { key: CONTENT_KEYS.howItWorks, label: "Homepage guide hub", path: "/" },
     { key: CONTENT_KEYS.gallery, label: "Homepage gallery", path: "/" },
     { key: CONTENT_KEYS.finalCta, label: "Homepage closing section", path: "/" },
     { key: CONTENT_KEYS.homeNewsletter, label: "Homepage release block", path: "/" },
@@ -510,13 +509,13 @@ const RECORD_LABELS: Record<
       { path: "category", label: "Category (the id it is filed under)" },
     ],
   },
-  "home.howItWorks.steps": {
-    title: "Steps",
-    singular: "step",
+  "home.howItWorks.links": {
+    title: "Guide cards",
+    singular: "guide card",
     fields: [
-      { path: "number", label: "Number" },
       { path: "title", label: "Title" },
-      { path: "description", label: "Description", kind: "longText" },
+      { path: "description", label: "One-line description", kind: "longText" },
+      { path: "href", label: "Goes to" },
     ],
   },
   // Menu items. Nav lists are keyed by a stable `key` the app generates; it is

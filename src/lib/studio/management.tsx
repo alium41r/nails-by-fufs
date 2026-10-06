@@ -17,7 +17,6 @@ import {
   persistSetPrimary,
   toStudioImage,
 } from "./adapter";
-import { FALLBACK_CURRENCY } from "@/lib/currency";
 import { studioStore } from "./store";
 import type { CollectionDraft, ProductDraft, StudioImage, StudioSaveResult } from "./types";
 
@@ -52,8 +51,6 @@ import type { CollectionDraft, ProductDraft, StudioImage, StudioSaveResult } fro
 export interface StudioManagementContextValue {
   products: StudioManagement["products"];
   collections: StudioManagement["collections"];
-  /** The store's configured default currency, for the price editors. */
-  defaultCurrency: string;
   /**
    * The owner-managed content documents, or null before they load.
    *
@@ -100,7 +97,6 @@ export interface StudioManagementContextValue {
 const EMPTY_MANAGEMENT: StudioManagement = {
   products: [],
   collections: [],
-  defaultCurrency: FALLBACK_CURRENCY,
   content: null as unknown as StudioManagement["content"],
 };
 
@@ -116,7 +112,6 @@ const EMPTY_MANAGEMENT: StudioManagement = {
 const ABSENT_MANAGEMENT: StudioManagementContextValue = {
   products: [],
   collections: [],
-  defaultCurrency: FALLBACK_CURRENCY,
   content: null,
   isLoaded: false,
   productById: () => undefined,
@@ -462,7 +457,6 @@ export function StudioManagementProvider({ children }: { children: React.ReactNo
     () => ({
       products: management.products,
       collections: management.collections,
-      defaultCurrency: management.defaultCurrency || FALLBACK_CURRENCY,
       content: management.content ?? null,
       isLoaded: true,
       productById: (id) => management.products.find((product) => product.id === id),

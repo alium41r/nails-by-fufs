@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useSyncExternalStore, useMemo, useCallback } from "react";
 import type { CatalogueProduct } from "@/lib/catalogue";
 import { SIZE_LABELS, SIZE_IDS, MAX_QUANTITY_PER_LINE, MAX_LINE_ITEMS } from "@/lib/order-validation";
+import { pricePlaceholder } from "@/lib/currency";
 
 export interface CartItem {
   id: string; // e.g. "glazed-truffle__size-m__len-Medium"
@@ -10,7 +11,7 @@ export interface CartItem {
   productSlug: string;
   name: string;
   descriptor: string;
-  price: string; // "$XX" placeholder
+  price: string; // the PKR no-price placeholder, until the set is priced
   size: string; // "xs" | "s" | "m" | "l" | "custom"
   sizeLabel: string; // "XS" | "S" | "M" | "L" | "Custom"
   length: string; // "Short" | "Medium" | "Long"
@@ -85,7 +86,10 @@ function sanitizeStoredItems(raw: unknown[]): CartItem[] {
       sizeLabel: SIZE_LABELS[size as keyof typeof SIZE_LABELS] ?? size.toUpperCase(),
       // Display-only string; long or unexpected values fall back to the
       // placeholder rather than rendering whatever was injected.
-      price: typeof item.price === "string" && item.price.length <= 16 ? item.price : "$XX",
+      price:
+        typeof item.price === "string" && item.price.length <= 16
+          ? item.price
+          : pricePlaceholder(),
       quantity: Math.min(MAX_QUANTITY_PER_LINE, Math.max(1, Math.round(quantity))),
     });
   }
@@ -239,7 +243,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       value={{
         items,
         totalItems,
-        subtotalPlaceholder: "$XX",
+        subtotalPlaceholder: pricePlaceholder(),
         addItem,
         removeItem,
         updateQuantity,

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { requireAdmin } from "@/lib/admin/auth";
 import { getPrisma } from "@/lib/prisma/db";
+import { formatPrice } from "@/lib/currency";
 import { AdminEmptyState, AdminPageHeader, StatusPill } from "@/components/admin/ui/primitives";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +11,6 @@ export const metadata = {
   title: "Orders — Studio Control Center",
   robots: { index: false, follow: false },
 };
-
-const money = (minor: number, currency: string) => `${currency} ${(minor / 100).toFixed(2)}`;
 
 const readable = (value: Date) =>
   value.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -88,7 +87,7 @@ export default async function AdminOrdersPage() {
                 <summary className="flex cursor-pointer list-none items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-subtle/50">
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="text-sm font-medium text-foreground">
-                      {money(order.total_minor, order.currency)}
+                      {formatPrice(order.total_minor)}
                     </span>
                     <span className="truncate text-[13px] text-muted-foreground">
                       {order.order_items.length} item
@@ -132,9 +131,9 @@ export default async function AdminOrdersPage() {
                           </span>
                         </span>
                         <span className="text-[13px] tabular-nums text-muted-foreground">
-                          {item.quantity} × {money(item.unit_price_minor, item.currency)}
+                          {item.quantity} × {formatPrice(item.unit_price_minor)}
                           <span className="ml-2 text-foreground">
-                            {money(item.line_total_minor, item.currency)}
+                            {formatPrice(item.line_total_minor)}
                           </span>
                         </span>
                       </li>
@@ -145,13 +144,13 @@ export default async function AdminOrdersPage() {
                     <div className="flex items-center gap-2">
                       <dt>Subtotal</dt>
                       <dd className="tabular-nums">
-                        {money(order.subtotal_minor, order.currency)}
+                        {formatPrice(order.subtotal_minor)}
                       </dd>
                     </div>
                     <div className="flex items-center gap-2">
                       <dt>Total</dt>
                       <dd className="tabular-nums text-foreground">
-                        {money(order.total_minor, order.currency)}
+                        {formatPrice(order.total_minor)}
                       </dd>
                     </div>
                     <div className="flex min-w-0 items-center gap-2">

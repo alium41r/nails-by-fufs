@@ -6,6 +6,7 @@ import { ImagePlaceholder } from "@/components/media/ImagePlaceholder";
 import { StudioContent } from "@/components/studio/StudioContent";
 import { StudioImageControl } from "@/components/studio/StudioImageSlot";
 import { studioImageGroupClass } from "@/lib/studio/image-slot-class";
+import { siteAssetUrl } from "@/lib/site-content";
 import type { CustomFeatureContent } from "@/lib/site-content-schema";
 
 /** The bespoke-commission band. Copy and imagery are both owner-managed. */
@@ -65,7 +66,8 @@ export async function CustomFeature({ content }: { content: CustomFeatureContent
             <div className={`relative w-full overflow-hidden ${studioGroup}`}>
               <ImagePlaceholder
                 ratio={content.imageRatio}
-                src={content.imagePath ?? null}
+                src={siteAssetUrl(content.imagePath)}
+                alt={content.imageAlt}
                 label={content.imagePlaceholderLabel}
                 sublabel={content.imagePlaceholderSublabel}
                 interactive

@@ -1,10 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 
-import {
-  FALLBACK_CURRENCY,
-  formatPrice as formatMoney,
-  pricePlaceholder,
-} from "@/lib/currency";
+import { formatPrice as formatMoney, pricePlaceholder } from "@/lib/currency";
 
 /**
  * Catalogue view model + mapping rules.
@@ -168,20 +164,16 @@ function asLength(value: string): CatalogueProduct["length"] {
 }
 
 /**
- * The price a customer sees, or the store's placeholder when there is none.
+ * The price a customer sees, or the placeholder when there is none.
  *
  * Delegates to `@/lib/currency`, which owns the one definition of how money is
- * formatted and what the placeholder looks like. `storeCurrency` is the store's
- * configured default and is used only to label the *placeholder* — an actual
- * price always uses the currency stored on the product, and is never converted.
+ * formatted and what the placeholder looks like. The row's stored `currency` is
+ * not consulted: the database guarantees it is PKR, and a display path that
+ * accepted a code would be a second place to get the store's currency wrong.
  */
-function formatPrice(
-  priceMinor: number | null,
-  currency: string | null,
-  storeCurrency: string,
-): string {
-  if (priceMinor === null || currency === null) return pricePlaceholder(storeCurrency);
-  return formatMoney(priceMinor, currency);
+function formatPrice(priceMinor: number | null): string {
+  if (priceMinor === null) return pricePlaceholder();
+  return formatMoney(priceMinor);
 }
 
 /** Public URL for an object in the public catalogue images bucket. */
@@ -252,21 +244,20 @@ function primaryPlaceholderImage(product: ProductRow): CatalogueImage {
 /**
  * Maps a catalogue row to the public view model.
  *
- * `storeCurrency` is the store's configured default, used only to label the
- * price placeholder. It defaults to the fallback so existing callers and tests
- * that construct a view without a content read still behave as before.
+ * Takes no currency argument: the store has exactly one, so there is nothing for
+ * a caller to choose and no way for a visitor's page and an admin list to
+ * disagree about how a price reads.
  */
 export function toProductView(
   row: ProductRow,
   imageRows: ProductImageRow[],
-  storeCurrency: string = FALLBACK_CURRENCY,
 ): CatalogueProduct {
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
     descriptor: row.descriptor,
-    price: formatPrice(row.price_minor, row.currency, storeCurrency),
+    price: formatPrice(row.price_minor),
     ...(row.tag === null ? {} : { tag: row.tag }),
     // An unassigned product has no collection to name or link to. Empty strings
     // rather than null keep the `string` shape every consumer already expects;

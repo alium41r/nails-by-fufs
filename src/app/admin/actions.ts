@@ -174,16 +174,16 @@ export async function updateProductAction(formData: FormData) {
 }
 
 /**
- * Price pair. Both NULL means "no verified price": the storefront shows its
- * placeholder and checkout refuses the product. Both set means it is priced and
- * therefore checkout-eligible. A half-set pair is rejected here and by the
- * database CHECK.
+ * Price. An absent price means "no verified price": the storefront shows its
+ * placeholder and checkout refuses the product. When it is present the currency
+ * is always PKR — the store has no other — and the database CHECK enforces the
+ * same pairing and the same code.
  */
 export async function updateProductPriceAction(formData: FormData) {
   if (!(await assertAdmin())) redirect("/admin/login?error=not_admin");
 
   const id = text(formData, "id");
-  const parsed = parsePricePair(text(formData, "price"), text(formData, "currency"));
+  const parsed = parsePricePair(text(formData, "price"));
 
   if (!parsed.ok) {
     redirect(`/admin/products/${id}?error=${encodeURIComponent(parsed.error)}`);

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { STORE_CURRENCY } from "@/lib/currency";
+
 /**
  * The single validation and normalisation layer for catalogue writes.
  *
@@ -18,7 +20,6 @@ import "server-only";
  */
 
 export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-export const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 export const PRODUCT_LENGTHS = ["Short", "Medium", "Long"] as const;
 
 export const MAX_NAME_LENGTH = 200;
@@ -83,37 +84,33 @@ export function parseDisplayOrder(raw: string | number | null | undefined): numb
 }
 
 /**
- * Parses the price pair submitted by either surface.
+ * Parses the price submitted by either surface.
  *
- * Both sides absent means "no verified price": the storefront shows its
- * placeholder and checkout refuses the product. Both sides present means the
- * product is priced and therefore checkout-eligible. A half-set pair is rejected
- * here and by the database CHECK constraint.
+ * The currency is not a parameter and not something a client may state: the
+ * store prices in PKR only, so a price that exists is always a PKR price. This
+ * is the boundary that makes the database's PKR CHECK constraint unreachable by
+ * ordinary writes.
+ *
+ * An absent price means "no verified price": the storefront shows its
+ * placeholder and checkout refuses the product. The database enforces the same
+ * pairing — `products_price_currency_pair` — so a half-set price cannot exist.
  */
 export function parsePricePair(
   priceRaw: string,
-  currencyRaw: string,
 ): { ok: true; priceMinor: number | null; currency: string | null } | { ok: false; error: string } {
   const price = priceRaw.trim();
-  const currency = currencyRaw.trim().toUpperCase();
 
-  if (price === "" && currency === "") return { ok: true, priceMinor: null, currency: null };
-  if (price === "") {
-    return { ok: false, error: "Enter a price, or clear the currency too, to mark this set as unpriced." };
-  }
+  if (price === "") return { ok: true, priceMinor: null, currency: null };
 
   const priceMinor = Number(price);
   if (!Number.isInteger(priceMinor) || priceMinor < 0) {
     return {
       ok: false,
-      error: "Price must be a whole number of minor units (for example 4500 for 45.00).",
+      error: "Price must be a whole number of paisa (for example 450000 for PKR 4,500.00).",
     };
   }
-  if (!CURRENCY_PATTERN.test(currency)) {
-    return { ok: false, error: "Currency must be a three-letter code such as USD." };
-  }
 
-  return { ok: true, priceMinor, currency };
+  return { ok: true, priceMinor, currency: STORE_CURRENCY };
 }
 
 /**

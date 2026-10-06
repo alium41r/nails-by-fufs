@@ -15,6 +15,8 @@
  * from the request; money is derived server-side from the catalogue.
  */
 
+import { formatPrice, isStoreCurrency } from "@/lib/currency";
+
 /** Size options, mirroring ProductOptions.tsx. Single source for cart + server. */
 export const SIZE_LABELS = {
   xs: "XS",
@@ -37,14 +39,12 @@ export const MAX_QUANTITY_PER_LINE = 10;
 export const MAX_LINE_ITEMS = 20;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
 export type OrderErrorCode =
   | "empty_cart"
   | "invalid_input"
   | "unavailable"
   | "unpriced"
-  | "currency_mismatch"
   | "server_error";
 
 /** Authoritative order summary returned to the UI after a confirmed creation. */
@@ -73,8 +73,18 @@ export function isValidOrderToken(value: unknown): value is string {
   return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
+/**
+ * True only for the store's currency.
+ *
+ * Replaces a `^[A-Z]{3}$` shape test. The shape test accepted any three letters,
+ * so a product mispriced as `USD` was orderable and would have written a dollar
+ * order into a rupee ledger. The rule itself lives in `@/lib/currency`; this is
+ * only the narrowing wrapper that lets a call site treat the value as a string.
+ * The database enforces the same rule, so this is the application half of one
+ * decision rather than a second, weaker check.
+ */
 export function isValidCurrency(value: unknown): value is string {
-  return typeof value === "string" && CURRENCY_PATTERN.test(value);
+  return typeof value === "string" && isStoreCurrency(value);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -146,6 +156,6 @@ export function validateOrderLines(raw: unknown): OrderLinesResult {
 }
 
 /** Deterministic display formatting for an authoritative server total. */
-export function formatMinorUnits(minor: number, currency: string): string {
-  return `${currency} ${(minor / 100).toFixed(2)}`;
+export function formatMinorUnits(minor: number): string {
+  return formatPrice(minor);
 }

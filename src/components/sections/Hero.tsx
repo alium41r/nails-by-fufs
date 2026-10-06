@@ -6,6 +6,7 @@ import { ImagePlaceholder } from "@/components/media/ImagePlaceholder";
 import { StudioContent } from "@/components/studio/StudioContent";
 import { StudioImageControl } from "@/components/studio/StudioImageSlot";
 import { studioImageGroupClass } from "@/lib/studio/image-slot-class";
+import { siteAssetUrl } from "@/lib/site-content";
 import type { HeroContent } from "@/lib/site-content-schema";
 
 /**
@@ -102,7 +103,8 @@ export async function Hero({ content }: { content: HeroContent }) {
             <div className={`relative mx-auto w-full max-w-md lg:max-w-none ${studioGroup}`}>
               <ImagePlaceholder
                 ratio={content.imageRatio}
-                src={content.imagePath ?? null}
+                src={siteAssetUrl(content.imagePath)}
+                alt={content.imageAlt}
                 label={content.imagePlaceholderLabel}
                 sublabel={content.imagePlaceholderSublabel}
                 interactive

@@ -28,9 +28,8 @@ export interface StudioProductSaveInput {
   name: string;
   descriptor: string;
   description: string;
-  /** Formatted price as typed, e.g. "45.00", or "" to clear it. */
+  /** Formatted price as typed, e.g. "45.00", or "" to clear it. Always PKR. */
   price: string;
-  currency: string;
   shape: string;
   defaultLength: string;
   finish: string;

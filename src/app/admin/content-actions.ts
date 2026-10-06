@@ -87,8 +87,8 @@ export async function saveContentDocument(input: {
 /**
  * Several documents in one call.
  *
- * Used by the Control Center's settings form, which submits identity, contact,
- * currency and socials together because they are one conceptual screen. Each key
+ * Used by the Control Center's settings form, which submits identity, contact
+ * and socials together because they are one conceptual screen. Each key
  * is still authorised and validated individually, and a failure on any key aborts
  * before anything is written, so the form cannot half-apply.
  */
@@ -148,7 +148,6 @@ function readBack(key: string, content: ReturnType<typeof parseSiteContent>): un
     "site.contact": content.contact,
     "site.socials": content.socials,
     "site.announcement": content.announcement,
-    "site.currency": content.currency,
     "site.nav.main": content.nav.main,
     "site.nav.mobile": content.nav.mobile,
     "site.nav.footer": content.nav.footer,
@@ -397,16 +396,14 @@ export interface StoreSettingsInput {
   addressLines: string;
   country: string;
   jurisdiction: string;
-  /** `site.currency.default`, an ISO 4217 code. */
-  defaultCurrency: string;
   /** `site.socials`, as submitted rows. Blank hrefs are dropped. */
   socials: { label: string; href: string }[];
 }
 
 /**
- * Saves the store's identity, contact details, default currency and socials.
+ * Saves the store's identity, contact details and socials.
  *
- * ## Why one action for four documents
+ * ## Why one action for three documents
  *
  * They are one screen and one mental object — "who the studio is and how to reach
  * it" — and splitting them would let an owner half-save a change that reads as a
@@ -432,11 +429,6 @@ export async function saveStoreSettings(input: StoreSettingsInput): Promise<Cont
   const phone = input.phone.trim();
   if (phone.length > 0 && !/[0-9]/.test(phone)) {
     return { ok: false, error: "A phone number needs at least one digit." };
-  }
-
-  const currency = input.defaultCurrency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) {
-    return { ok: false, error: "The default currency must be a three-letter code such as PKR or USD." };
   }
 
   // Blank rows are how the owner removes a social link, so they are dropped
@@ -479,7 +471,6 @@ export async function saveStoreSettings(input: StoreSettingsInput): Promise<Cont
         jurisdiction: input.jurisdiction.trim(),
       },
     },
-    { key: "site.currency", value: { default: currency } },
     { key: "site.socials", value: socials },
   ]);
 }

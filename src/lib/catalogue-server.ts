@@ -4,7 +4,6 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { getPrisma } from "@/lib/prisma/db";
-import { getSiteBasics } from "@/lib/site-content";
 import {
   CATALOGUE_CACHE_SECONDS,
   CATALOGUE_CACHE_TAG,
@@ -69,12 +68,6 @@ export interface StorefrontCatalogue {
 const readCatalogue = unstable_cache(
   async (): Promise<StorefrontCatalogue> => {
     const prisma = getPrisma();
-
-    // Read first: the product view model needs the store's configured currency to
-    // label an unpriced product's placeholder. It is a cached read of one row,
-    // and `getSiteBasics` is request-deduped, so this does not add a second
-    // content query when the page renders content as well.
-    const { defaultCurrency } = await getSiteBasics();
 
     const [collectionRows, productRows] = await Promise.all([
       prisma.collections.findMany({
@@ -144,7 +137,7 @@ const readCatalogue = unstable_cache(
     return {
       collections: collectionRows.map(toCollectionView),
       products: productRows.map((row) =>
-        toProductView(row, imagesByProduct.get(row.id) ?? [], defaultCurrency),
+        toProductView(row, imagesByProduct.get(row.id) ?? []),
       ),
     };
   },

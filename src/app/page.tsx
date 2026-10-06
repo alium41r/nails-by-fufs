@@ -5,11 +5,8 @@ import { StudioBoundary } from "@/components/studio/StudioBoundary";
 import { getStorefrontCatalogue } from "@/lib/catalogue-server";
 import { getSiteContent } from "@/lib/site-content";
 import { Hero } from "@/components/sections/Hero";
-import { FeaturedCollection } from "@/components/sections/FeaturedCollection";
 import { ProductPreview } from "@/components/sections/ProductPreview";
-import { CustomFeature } from "@/components/sections/CustomFeature";
 import { HowItWorksPreview } from "@/components/sections/HowItWorksPreview";
-import { EditorialGallery } from "@/components/sections/EditorialGallery";
 import { FinalCTA } from "@/components/sections/FinalCTA";
 import { NewsletterSection } from "@/components/sections/NewsletterSection";
 
@@ -58,11 +55,8 @@ export default async function HomePage() {
     <StudioBoundary products={products} collections={collections}>
       <Shell>
         <Hero content={content.home.hero} />
-        <FeaturedCollection content={content.home.featuredCollection} />
         <ProductPreview products={products} content={content.home.productPreview} />
-        <CustomFeature content={content.home.customFeature} />
         <HowItWorksPreview content={content.home.howItWorks} />
-        <EditorialGallery content={content.home.gallery} />
         <FinalCTA content={content.home.finalCta} />
         <NewsletterSection content={content.home.newsletter} contact={content.contact} />
       </Shell>

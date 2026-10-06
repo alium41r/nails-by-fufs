@@ -16,8 +16,10 @@
 --
 -- Deliberately NOT seeded:
 --   * prices — `price_minor` / `currency` stay NULL; the project has no verified
---     price (the storefront shows a "$XX" placeholder). The upserts below never
---     write these columns, so a future real price would not be clobbered.
+--     price (the storefront shows a "PKR XX" placeholder). The upserts below never
+--     write these columns, so a future real price would not be clobbered. When a
+--     price IS set, `currency` is always PKR — the store has no other, and the
+--     database enforces it (`products_currency_pkr`).
 --   * product_images — the project contains no image files or Storage bucket, and
 --     `storage_path` is NOT NULL, so inserting rows would mean inventing image
 --     metadata. The storefront renders its placeholder gallery instead.

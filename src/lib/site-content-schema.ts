@@ -167,11 +167,6 @@ export interface NewsletterContent {
   emailSubject: string;
 }
 
-export interface CurrencyContent {
-  /** ISO 4217 code used as the default when pricing a product. */
-  default: string;
-}
-
 export interface HeroContent extends ImageSlot {
   eyebrow: string;
   headline: string;
@@ -208,10 +203,22 @@ export interface CustomFeatureContent extends ImageSlot {
   cta: CtaLink;
 }
 
-export interface ProcessStepContent {
-  number: string;
+/**
+ * One card in the homepage guide hub.
+ *
+ * This replaced a numbered process step. A step restated the process on the
+ * homepage; a guide card sends the reader to the page that actually answers the
+ * question — sizing, application, delivery, care — so the two cannot drift apart.
+ * `description` is deliberately one short line, because the card is a signpost
+ * rather than an explanation.
+ *
+ * There is no stored `number`: position is the array's, so reordering the cards
+ * in the Studio renumbers them instead of leaving a stale "03" behind.
+ */
+export interface GuideCardContent {
   title: string;
   description: string;
+  href: string;
 }
 
 export interface HowItWorksContent {
@@ -219,7 +226,7 @@ export interface HowItWorksContent {
   title: string;
   description: string;
   cta: CtaLink;
-  steps: ProcessStepContent[];
+  links: GuideCardContent[];
 }
 
 export interface GalleryContent {
@@ -314,7 +321,6 @@ export interface SiteContent {
   contact: SiteContact;
   socials: SocialLink[];
   announcement: AnnouncementContent;
-  currency: CurrencyContent;
   nav: {
     main: NavItem[];
     mobile: NavItem[];
@@ -349,7 +355,6 @@ export const CONTENT_KEYS = {
   contact: "site.contact",
   socials: "site.socials",
   announcement: "site.announcement",
-  currency: "site.currency",
   navMain: "site.nav.main",
   navMobile: "site.nav.mobile",
   navFooter: "site.nav.footer",
@@ -475,8 +480,6 @@ export const DEFAULT_NEWSLETTER: NewsletterContent = {
   emailSubject: "Studio release updates",
 };
 
-export const DEFAULT_CURRENCY: CurrencyContent = { default: "USD" };
-
 export const DEFAULT_SOCIALS: SocialLink[] = [
   { key: "instagram", label: "Instagram", href: "https://instagram.com", enabled: true },
   { key: "tiktok", label: "TikTok", href: "https://tiktok.com", enabled: true },
@@ -597,15 +600,41 @@ export const DEFAULT_CUSTOM_FEATURE: CustomFeatureContent = {
 };
 
 export const DEFAULT_HOW_IT_WORKS: HowItWorksContent = {
-  eyebrow: "The Process",
-  title: "Simple & Reusable",
-  description: "Designed for simple application at your own pace.",
+  eyebrow: "Guides & Support",
+  title: "Guides",
+  description: "Short, practical answers on sizing, application, delivery and care.",
   cta: cta("Application Guide", "/how-it-works"),
-  steps: [
-    { number: "01", title: "Choose", description: "Pick from seasonal releases or request a custom set." },
-    { number: "02", title: "Size", description: "Find your measurements for a comfortable fit." },
-    { number: "03", title: "Apply", description: "Attach in minutes with tabs or nail glue." },
-    { number: "04", title: "Wear", description: "Enjoy polished nails whenever you need them." },
+  links: [
+    {
+      title: "How It Works",
+      description: "Follow a set from choosing a design to wearing it.",
+      href: "/how-it-works",
+    },
+    {
+      title: "Size Guide",
+      description: "Measure your natural nails for a comfortable fit.",
+      href: "/size-guide",
+    },
+    {
+      title: "FAQ",
+      description: "Sizing, fit, application, care and returns.",
+      href: "/faq",
+    },
+    {
+      title: "Book an Appointment",
+      description: "Have your set applied in person at the studio.",
+      href: "/book-appointment",
+    },
+    {
+      title: "Shipping & Delivery",
+      description: "Processing times and how orders are sent.",
+      href: "/shipping-policy",
+    },
+    {
+      title: "Contact the Studio",
+      description: "Ask about a set, an order or a custom idea.",
+      href: "/contact",
+    },
   ],
 };
 
@@ -1328,14 +1357,6 @@ export function parseNewsletter(value: unknown): NewsletterContent {
   };
 }
 
-export function parseCurrency(value: unknown): CurrencyContent {
-  const raw = record(value);
-  const code = typeof raw.default === "string" ? raw.default.trim().toUpperCase() : "";
-  // Any three-letter code is accepted rather than only the picker's list, so a
-  // currency the owner already uses somewhere is never silently rewritten.
-  return { default: /^[A-Z]{3}$/.test(code) ? code : DEFAULT_CURRENCY.default };
-}
-
 export function parseHero(value: unknown): HeroContent {
   const raw = record(value);
   return {
@@ -1389,25 +1410,30 @@ export function parseCustomFeature(value: unknown): CustomFeatureContent {
 
 export function parseHowItWorks(value: unknown): HowItWorksContent {
   const raw = record(value);
-  const rows = array(raw.steps);
-  const steps: ProcessStepContent[] = rows
+  const rows = array(raw.links);
+  const links: GuideCardContent[] = rows
     .map((row, index) => {
-      const step = record(row);
-      const fallback = DEFAULT_HOW_IT_WORKS.steps[index];
+      const card = record(row);
+      const fallback = DEFAULT_HOW_IT_WORKS.links[index];
+      const href = str(card.href, fallback?.href ?? "");
       return {
-        number: str(step.number, fallback?.number ?? String(index + 1).padStart(2, "0")),
-        title: str(step.title, fallback?.title ?? ""),
-        description: strAllowEmpty(step.description, fallback?.description ?? ""),
+        title: str(card.title, fallback?.title ?? ""),
+        description: strAllowEmpty(card.description, fallback?.description ?? ""),
+        // Same reason as `ctaLink`: a stored href that fails the safety check
+        // falls back rather than being rendered into an anchor.
+        href: isValidLinkHref(href) ? href : (fallback?.href ?? ""),
       };
     })
-    .filter((step) => step.title.length > 0 || step.description.length > 0);
+    // A card with no title has nothing to read and one with no valid href has
+    // nowhere to go, so it is dropped rather than rendered as a dead box.
+    .filter((card) => card.title.length > 0 && card.href.length > 0);
 
   return {
     eyebrow: str(raw.eyebrow, DEFAULT_HOW_IT_WORKS.eyebrow),
     title: str(raw.title, DEFAULT_HOW_IT_WORKS.title),
     description: strAllowEmpty(raw.description, DEFAULT_HOW_IT_WORKS.description),
     cta: ctaLink(raw.cta, DEFAULT_HOW_IT_WORKS.cta),
-    steps: steps.length > 0 ? steps : DEFAULT_HOW_IT_WORKS.steps,
+    links: links.length > 0 ? links : DEFAULT_HOW_IT_WORKS.links,
   };
 }
 
@@ -1559,7 +1585,6 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   contact: DEFAULT_CONTACT,
   socials: DEFAULT_SOCIALS,
   announcement: DEFAULT_ANNOUNCEMENT,
-  currency: DEFAULT_CURRENCY,
   nav: { main: DEFAULT_MAIN_NAV, mobile: DEFAULT_MOBILE_NAV, footer: DEFAULT_FOOTER_NAV },
   newsletter: DEFAULT_NEWSLETTER,
   home: {
@@ -1597,7 +1622,6 @@ export function parseSiteContent(rows: { key: string; value: unknown }[]): SiteC
     contact: parseContact(get(CONTENT_KEYS.contact)),
     socials: socialLinks(get(CONTENT_KEYS.socials), DEFAULT_SOCIALS),
     announcement: parseAnnouncement(get(CONTENT_KEYS.announcement)),
-    currency: parseCurrency(get(CONTENT_KEYS.currency)),
     nav: {
       main: navItems(get(CONTENT_KEYS.navMain), DEFAULT_MAIN_NAV),
       mobile: navItems(get(CONTENT_KEYS.navMobile), DEFAULT_MOBILE_NAV),

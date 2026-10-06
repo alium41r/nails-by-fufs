@@ -28,7 +28,7 @@ const mockProduct: CatalogueProduct = {
   slug: "noir-velvet",
   name: "Noir Velvet",
   descriptor: "Deep Berry Velvet Set",
-  price: "USD 45.00",
+  price: "PKR 45.00",
   tag: "New",
   collectionSlug: "core-edit",
   collectionName: "Core Edit",
@@ -71,30 +71,31 @@ const mockCollection: CatalogueCollection = {
 
 describe("Studio Mode: Price parsing & formatting", () => {
   it("parses numeric strings into minor units", () => {
-    expect(parsePrice("45")).toEqual({ priceMinor: 4500, currency: "USD" });
-    expect(parsePrice("45.50")).toEqual({ priceMinor: 4550, currency: "USD" });
-    expect(parsePrice("0")).toEqual({ priceMinor: 0, currency: "USD" });
+    expect(parsePrice("45")).toEqual({ priceMinor: 4500 });
+    expect(parsePrice("45.50")).toEqual({ priceMinor: 4550 });
+    expect(parsePrice("0")).toEqual({ priceMinor: 0 });
   });
 
-  it("extracts currency symbols and codes", () => {
-    expect(parsePrice("$48.00")).toEqual({ priceMinor: 4800, currency: "USD" });
-    expect(parsePrice("CAD 55")).toEqual({ priceMinor: 5500, currency: "CAD" });
-    expect(parsePrice("£35.00")).toEqual({ priceMinor: 3500, currency: "GBP" });
-    expect(parsePrice("€40.00")).toEqual({ priceMinor: 4000, currency: "EUR" });
+  it("strips a currency prefix without inventing a currency", () => {
+    // A prefix is punctuation to skip, never a currency to adopt: the store
+    // prices in PKR, so every one of these is a rupee amount.
+    expect(parsePrice("PKR 4800.00")).toEqual({ priceMinor: 480000 });
+    expect(parsePrice("Rs 55")).toEqual({ priceMinor: 5500 });
+    expect(parsePrice("₨ 40.00")).toEqual({ priceMinor: 4000 });
   });
 
   it("handles unpriced and empty inputs as unpriced", () => {
-    expect(parsePrice("")).toEqual({ priceMinor: null, currency: "USD" });
-    expect(parsePrice("   ")).toEqual({ priceMinor: null, currency: "USD" });
-    expect(parsePrice(PRICE_PLACEHOLDER)).toEqual({ priceMinor: null, currency: "USD" });
+    expect(parsePrice("")).toEqual({ priceMinor: null });
+    expect(parsePrice("   ")).toEqual({ priceMinor: null });
+    expect(parsePrice(PRICE_PLACEHOLDER)).toEqual({ priceMinor: null });
   });
 
-  it("formats prices correctly or returns placeholder", () => {
-    expect(formatPrice(4500, "USD")).toBe("USD 45.00");
-    expect(formatPrice(1250, "CAD")).toBe("CAD 12.50");
-    expect(formatPrice(null, "USD")).toBe(PRICE_PLACEHOLDER);
-    expect(formatPrice(undefined, "USD")).toBe(PRICE_PLACEHOLDER);
-    expect(formatPrice(4500, null)).toBe(PRICE_PLACEHOLDER);
+  it("formats every price in PKR or returns the placeholder", () => {
+    expect(formatPrice(4500)).toBe("PKR 45.00");
+    expect(formatPrice(1250)).toBe("PKR 12.50");
+    expect(formatPrice(null)).toBe(PRICE_PLACEHOLDER);
+    expect(formatPrice(undefined)).toBe(PRICE_PLACEHOLDER);
+    expect(PRICE_PLACEHOLDER).toBe("PKR XX");
   });
 });
 
@@ -103,7 +104,6 @@ describe("Studio Mode: Draft application", () => {
     const draft = {
       name: "Noir Velvet Deluxe",
       priceMinor: 5500,
-      currency: "USD",
       shape: "Coffin",
       length: "Long" as const,
       tag: "Bestseller",
@@ -114,7 +114,7 @@ describe("Studio Mode: Draft application", () => {
     const merged = applyProductDraft(mockProduct, draft);
 
     expect(merged.name).toBe("Noir Velvet Deluxe");
-    expect(merged.price).toBe("USD 55.00");
+    expect(merged.price).toBe("PKR 55.00");
     expect(merged.shape).toBe("Coffin");
     expect(merged.length).toBe("Long");
     expect(merged.tag).toBe("Bestseller");
@@ -130,7 +130,6 @@ describe("Studio Mode: Draft application", () => {
   it("correctly identifies unpriced product in drafts", () => {
     const unpricedDraft = {
       priceMinor: null,
-      currency: "USD",
     };
     const merged = applyProductDraft(mockProduct, unpricedDraft);
     expect(merged.price).toBe(PRICE_PLACEHOLDER);
@@ -224,36 +223,33 @@ const image = (overrides: Partial<StudioImage> & { id: string }): StudioImage =>
 });
 
 describe("Studio Mode: catalogue price parsing (revert path)", () => {
-  it("reads the documented `CUR 00.00` catalogue format", () => {
-    expect(parseCataloguePrice("USD 45.00")).toEqual({
+  it("reads the documented `PKR 00.00` catalogue format", () => {
+    expect(parseCataloguePrice("PKR 45.00")).toEqual({
       priceMinor: 4500,
-      currency: "USD",
       amount: "45.00",
     });
-    expect(parseCataloguePrice("CAD 12.50")).toEqual({
+    expect(parseCataloguePrice("PKR 12.50")).toEqual({
       priceMinor: 1250,
-      currency: "CAD",
       amount: "12.50",
     });
     // Regression: the revert button used to strip non-digits and produce "4500".
-    expect(parseCataloguePrice("USD 45.00").amount).not.toBe("4500");
+    expect(parseCataloguePrice("PKR 45.00").amount).not.toBe("4500");
   });
 
   it("treats the placeholder and unparseable values as unpriced", () => {
-    for (const value of [PRICE_PLACEHOLDER, "$XX", "", "   ", "Ask us"]) {
+    for (const value of [PRICE_PLACEHOLDER, "$XX", "", "   ", "Ask us", "USD 45.00"]) {
       expect(parseCataloguePrice(value)).toEqual({
         priceMinor: null,
-        currency: null,
         amount: "",
       });
     }
   });
 
   it("survives a round trip through parsePrice", () => {
-    const base = parseCataloguePrice("USD 45.00");
-    const reparsed = parsePrice(base.amount, base.currency ?? "USD");
-    expect(reparsed).toEqual({ priceMinor: 4500, currency: "USD" });
-    expect(formatPrice(reparsed.priceMinor, reparsed.currency)).toBe("USD 45.00");
+    const base = parseCataloguePrice("PKR 45.00");
+    const reparsed = parsePrice(base.amount);
+    expect(reparsed).toEqual({ priceMinor: 4500 });
+    expect(formatPrice(reparsed.priceMinor)).toBe("PKR 45.00");
   });
 });
 

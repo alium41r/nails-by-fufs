@@ -4,7 +4,7 @@ import { CalendarDays, ImagePlus, Package, Sparkles, TrendingUp } from "lucide-r
 
 import { requireAdmin } from "@/lib/admin/auth";
 import { getPrisma } from "@/lib/prisma/db";
-import { isPriced } from "@/lib/currency";
+import { formatPrice, isPriced } from "@/lib/currency";
 import { getSiteBasics } from "@/lib/site-content";
 import { AdminPageHeader, AdminSection, AdminEmptyState, StatusPill } from "@/components/admin/ui/primitives";
 import { AdminButton } from "@/components/admin/ui/controls";
@@ -18,7 +18,6 @@ export const metadata: Metadata = {
 
 const shortDate = (value: Date) =>
   value.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-const money = (minor: number, currency: string) => `${currency} ${(minor / 100).toFixed(2)}`;
 
 /**
  * The Control Center overview.
@@ -90,7 +89,7 @@ export default async function AdminOverviewPage() {
 
   // The two conditions that actually prevent a sale, counted separately so each
   // card can name its own fix.
-  const missingPrice = products.filter((row) => !isPriced(row.price_minor, row.currency));
+  const missingPrice = products.filter((row) => !isPriced(row.price_minor));
   const missingPhoto = products.filter((row) => !withImage.has(row.id));
   const hiddenCollection = products.filter(
     (row) =>
@@ -334,7 +333,7 @@ export default async function AdminOverviewPage() {
                     <TrendingUp className="h-4 w-4 shrink-0 text-muted-foreground/70" />
                     <span className="flex min-w-0 flex-col gap-0.5">
                       <span className="text-sm font-medium text-foreground">
-                        {money(order.total_minor, order.currency)}
+                        {formatPrice(order.total_minor)}
                       </span>
                       <span className="truncate text-[13px] text-muted-foreground">
                         {order.order_items.length} item

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { STORE_CURRENCY } from "@/lib/currency";
 import {
   SIZE_LABELS,
   isValidCurrency,
@@ -85,11 +86,9 @@ export async function createOrderFromCart(
   const byId = new Map(products.map((product) => [product.id, product]));
   const unavailable: string[] = [];
   const unpriced: string[] = [];
-  const currencies = new Set<string>();
   const priced: {
     line: (typeof lines)[number];
     product: (typeof products)[number];
-    currency: string;
     unitPriceMinor: number;
   }[] = [];
 
@@ -118,11 +117,9 @@ export async function createOrderFromCart(
       continue;
     }
 
-    currencies.add(product.currency);
     priced.push({
       line,
       product,
-      currency: product.currency,
       unitPriceMinor: product.price_minor,
     });
   }
@@ -148,15 +145,6 @@ export async function createOrderFromCart(
     };
   }
 
-  if (currencies.size !== 1) {
-    return {
-      ok: false,
-      code: "currency_mismatch",
-      message: "Your bag mixes sets priced in different currencies, so it cannot be ordered as one order.",
-    };
-  }
-
-  const currency = [...currencies][0];
   const subtotalMinor = priced.reduce(
     (sum, entry) => sum + entry.unitPriceMinor * entry.line.quantity,
     0,
@@ -165,7 +153,7 @@ export async function createOrderFromCart(
   const order = await db.orders.create({
     data: {
       order_token: orderToken,
-      currency,
+      currency: STORE_CURRENCY,
       subtotal_minor: subtotalMinor,
       // No shipping, tax or discount is collected by the current UI, and the
       // database enforces total = subtotal until B6 introduces fees.
@@ -191,7 +179,7 @@ export async function createOrderFromCart(
       selected_size_label: SIZE_LABELS[entry.line.size],
       selected_length: entry.line.length,
       unit_price_minor: entry.unitPriceMinor,
-      currency: entry.currency,
+      currency: STORE_CURRENCY,
       quantity: entry.line.quantity,
       line_total_minor: entry.unitPriceMinor * entry.line.quantity,
     })),

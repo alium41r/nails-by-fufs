@@ -153,10 +153,7 @@ export async function saveStudioProduct(
   if (!tag.ok) return { ok: false, kind: "invalid", error: tag.error };
 
   const priceInput = input.price.trim();
-  const parsedPrice = parsePricePair(
-    priceInput === "" ? "" : priceToMinorUnits(priceInput),
-    priceInput === "" ? "" : input.currency,
-  );
+  const parsedPrice = parsePricePair(priceInput === "" ? "" : priceToMinorUnits(priceInput));
   if (!parsedPrice.ok) return { ok: false, kind: "invalid", error: parsedPrice.error };
 
   const prisma = getPrisma();

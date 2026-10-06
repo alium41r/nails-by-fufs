@@ -17,7 +17,6 @@ export function readContentValue(content: SiteContent, key: string): unknown {
     [CONTENT_KEYS.contact]: content.contact,
     [CONTENT_KEYS.socials]: content.socials,
     [CONTENT_KEYS.announcement]: content.announcement,
-    [CONTENT_KEYS.currency]: content.currency,
     [CONTENT_KEYS.navMain]: content.nav.main,
     [CONTENT_KEYS.navMobile]: content.nav.mobile,
     [CONTENT_KEYS.navFooter]: content.nav.footer,

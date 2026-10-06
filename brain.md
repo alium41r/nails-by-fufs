@@ -105,7 +105,7 @@
   - Phase 2B-3 fitting guide: Visual size & measurement guide (`/size-guide`).
   - Phase 2C-1 brand storytelling & support: Artist studio story (`/about`), accessible scannable accordion support (`/faq`), and quiet inquiry contact form (`/contact`).
   - Phase 2D shop and search experience: Refined `/shop` with URL-synced multi-axis filtering, lightweight header search popover, mobile drawer search, dedicated `/search` page, and pure deterministic search utility.
-  - Phase 2E shopping bag experience: Functional client-side cart provider (`CartProvider.tsx`) with `useSyncExternalStore` and `localStorage` persistence, "Add to Bag" interaction on `ProductOptions.tsx`, real-time header count badge, and dedicated editorial `/cart` bag page with quantity stepper, line removal, subtotal placeholder (`$XX`), and calm empty bag state.
+  - Phase 2E shopping bag experience: Functional client-side cart provider (`CartProvider.tsx`) with `useSyncExternalStore` and `localStorage` persistence, "Add to Bag" interaction on `ProductOptions.tsx`, real-time header count badge, and dedicated editorial `/cart` bag page with quantity stepper, line removal, subtotal placeholder (`PKR XX`), and calm empty bag state.
 
 ---
 

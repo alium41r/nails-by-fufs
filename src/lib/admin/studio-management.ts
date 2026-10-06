@@ -75,8 +75,11 @@ export interface StudioProductManagement {
   finish: string;
   tag: string | null;
   included: string[];
+  /**
+   * Minor units (paisa), or null for "unpriced". There is no currency field:
+   * every price in this store is PKR, which `@/lib/currency` owns.
+   */
   priceMinor: number | null;
-  currency: string | null;
   isActive: boolean;
   featured: boolean;
   displayOrder: number | null;
@@ -87,15 +90,6 @@ export interface StudioProductManagement {
 export interface StudioManagement {
   products: StudioProductManagement[];
   collections: StudioCollectionManagement[];
-  /**
-   * The store's configured default currency.
-   *
-   * Travels with the management projection rather than the public content read
-   * because only the Studio editors need it, and this projection is fetched only
-   * once an admin has entered Studio Mode. It decides which currency a new price
-   * entry starts on; it never rewrites a stored price.
-   */
-  defaultCurrency: string;
   /**
    * The owner-managed content documents, so Studio Mode can edit storefront copy
    * in place.
@@ -152,7 +146,6 @@ export async function loadStudioManagement(): Promise<StudioManagement> {
         tag: true,
         included: true,
         price_minor: true,
-        currency: true,
         is_active: true,
         featured: true,
         display_order: true,
@@ -173,8 +166,8 @@ export async function loadStudioManagement(): Promise<StudioManagement> {
     }),
   ]);
 
-  // Content and the default currency come from the same read the storefront
-  // uses, so Studio Mode edits exactly what a customer's page was built from.
+  // Content comes from the same read the storefront uses, so Studio Mode edits
+  // exactly what a customer's page was built from.
   const content = await getSiteContent();
 
   // Version tokens for both tables, at full timestamp precision.
@@ -204,7 +197,6 @@ export async function loadStudioManagement(): Promise<StudioManagement> {
   }
 
   return {
-    defaultCurrency: content.currency.default,
     content,
     collections: collectionRows.map((row) => ({
       id: row.id,
@@ -234,7 +226,6 @@ export async function loadStudioManagement(): Promise<StudioManagement> {
       tag: row.tag,
       included: row.included,
       priceMinor: row.price_minor,
-      currency: row.currency,
       isActive: row.is_active,
       featured: row.featured,
       displayOrder: row.display_order,

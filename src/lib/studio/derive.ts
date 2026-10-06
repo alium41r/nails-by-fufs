@@ -8,7 +8,7 @@ import type {
   StudioCollectionManagement,
   StudioProductManagement,
 } from "@/lib/admin/studio-management";
-import { FALLBACK_CURRENCY, pricePlaceholder } from "@/lib/currency";
+import { formatPrice as formatMoney, pricePlaceholder } from "@/lib/currency";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/admin/paths";
 import type {
   CollectionDraft,
@@ -22,12 +22,11 @@ import type {
  * The storefront's no-price marker.
  *
  * Kept as a named constant here because the Studio editor compares against it to
- * decide whether a field is "unpriced", but its *value* now comes from
- * `@/lib/currency`, which derives it from the store's configured default
- * currency. As a literal `"$XX"` it was a dollar sign hardcoded into a store that
- * prices in rupees.
+ * decide whether a field is "unpriced", but its *value* comes from
+ * `@/lib/currency`, the one definition of what an absent price looks like. It is
+ * a constant string, so the editor and the storefront cannot disagree.
  */
-export const PRICE_PLACEHOLDER = pricePlaceholder(FALLBACK_CURRENCY);
+export const PRICE_PLACEHOLDER = pricePlaceholder();
 
 /**
  * Revokes a locally created object URL.
@@ -53,63 +52,36 @@ export function isBlobUrl(value: unknown): value is string {
 }
 
 /**
- * Parses user input price like "$45", "45.00", "CAD 50", "35" into minor units and currency code.
+ * Parses the amount an owner typed into the Studio price field.
+ *
+ * The currency is not an input and not an output. A previous version of this
+ * function sniffed a leading `$`, `£` or `€` and invented a currency to match,
+ * which is how a rupee store could end up with a dollar-priced product from a
+ * single stray keystroke. Any recognised currency prefix is now simply stripped
+ * — `PKR 4,500`, `Rs 4,500` and `4,500` all mean four thousand five hundred
+ * rupees — and the stored code is always the store's.
  */
-export function parsePrice(
-  input: string,
-  fallbackCurrency: string = FALLBACK_CURRENCY
-): { priceMinor: number | null; currency: string } {
+export function parsePrice(input: string): { priceMinor: number | null } {
   const trimmed = input.trim();
-  if (!trimmed || trimmed === PRICE_PLACEHOLDER) {
-    return { priceMinor: null, currency: fallbackCurrency };
-  }
+  if (!trimmed || trimmed === PRICE_PLACEHOLDER) return { priceMinor: null };
 
-  // Extract currency letters if present (e.g. "USD", "CAD", "EUR", "£", "€", "$")
-  let currency = fallbackCurrency;
-  let numericPart = trimmed;
+  // Drop a leading code or symbol, then keep only digits and the decimal point.
+  const withoutPrefix = trimmed
+    .replace(/^(PKR|Rs\.?|₨)\s*/i, "")
+    .replace(/^\p{Sc}\s*/u, "");
 
-  if (trimmed.startsWith("$")) {
-    currency = "USD";
-    numericPart = trimmed.slice(1);
-  } else if (trimmed.startsWith("£")) {
-    currency = "GBP";
-    numericPart = trimmed.slice(1);
-  } else if (trimmed.startsWith("€")) {
-    currency = "EUR";
-    numericPart = trimmed.slice(1);
-  } else {
-    const match = trimmed.match(/^([A-Za-z]{3})\s*(.*)$/);
-    if (match) {
-      currency = match[1].toUpperCase();
-      numericPart = match[2];
-    }
-  }
-
-  const cleaned = numericPart.replace(/[^0-9.]/g, "");
-  if (!cleaned) {
-    return { priceMinor: null, currency };
-  }
+  const cleaned = withoutPrefix.replace(/[^0-9.]/g, "");
+  if (!cleaned) return { priceMinor: null };
 
   const val = parseFloat(cleaned);
-  if (isNaN(val) || val < 0) {
-    return { priceMinor: null, currency };
-  }
+  if (isNaN(val) || val < 0) return { priceMinor: null };
 
-  return {
-    priceMinor: Math.round(val * 100),
-    currency,
-  };
+  return { priceMinor: Math.round(val * 100) };
 }
 
 /** Formats minor units into customer display string. */
-export function formatPrice(
-  priceMinor: number | null | undefined,
-  currency: string | null | undefined
-): string {
-  if (priceMinor === null || priceMinor === undefined || !currency) {
-    return PRICE_PLACEHOLDER;
-  }
-  return `${currency} ${(priceMinor / 100).toFixed(2)}`;
+export function formatPrice(priceMinor: number | null | undefined): string {
+  return formatMoney(priceMinor);
 }
 
 /**
@@ -260,7 +232,7 @@ export function managementToCatalogueView(
     slug: product.slug,
     name,
     descriptor: product.descriptor,
-    price: formatPrice(product.priceMinor, product.currency),
+    price: formatPrice(product.priceMinor),
     ...(product.tag === null ? {} : { tag: product.tag }),
     collectionSlug: product.collectionSlug,
     collectionName: product.collectionSlug,
@@ -323,11 +295,11 @@ export function applyProductDraft(
   let isUnpriced = base.price === PRICE_PLACEHOLDER;
 
   if (draft?.priceMinor !== undefined) {
-    if (draft.priceMinor === null || !draft.currency) {
+    if (draft.priceMinor === null) {
       formattedPrice = PRICE_PLACEHOLDER;
       isUnpriced = true;
     } else {
-      formattedPrice = formatPrice(draft.priceMinor, draft.currency);
+      formattedPrice = formatPrice(draft.priceMinor);
       isUnpriced = false;
     }
   }
@@ -410,36 +382,36 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
 }
 
 /**
- * Reads the editable price out of a catalogue price string such as
- * `"USD 45.00"`, `"$XX"` or `"$45"`.
+ * Reads the editable price out of a display price string such as
+ * `"PKR 4,500.00"` or the placeholder.
  *
  * Used to pre-fill and to revert the editor, so it parses the same documented
  * format the server produces in `src/lib/catalogue.ts` instead of a
- * digits-only strip that turned `"USD 45.00"` into `4500`.
+ * digits-only strip that turned `"PKR 4,500.00"` into `4500`. The code is not
+ * returned: there is only one, and `PKR 4,500.00` and `4,500.00` mean the same
+ * amount.
  */
 export function parseCataloguePrice(price: string): {
   priceMinor: number | null;
-  currency: string | null;
   amount: string;
 } {
   const trimmed = price.trim();
   if (!trimmed || trimmed === PRICE_PLACEHOLDER) {
-    return { priceMinor: null, currency: null, amount: "" };
+    return { priceMinor: null, amount: "" };
   }
 
-  const match = trimmed.match(/^([A-Za-z]{3})?\s*([0-9]+(?:\.[0-9]+)?)$/);
+  const match = trimmed.match(/^(?:PKR\s*)?([0-9]+(?:\.[0-9]+)?)$/i);
   if (!match) {
-    return { priceMinor: null, currency: null, amount: "" };
+    return { priceMinor: null, amount: "" };
   }
 
-  const currency = match[1] ? match[1].toUpperCase() : null;
-  const amount = match[2];
+  const amount = match[1];
   const value = Number.parseFloat(amount);
   if (!Number.isFinite(value) || value < 0) {
-    return { priceMinor: null, currency, amount: "" };
+    return { priceMinor: null, amount: "" };
   }
 
-  return { priceMinor: Math.round(value * 100), currency, amount };
+  return { priceMinor: Math.round(value * 100), amount };
 }
 
 /**

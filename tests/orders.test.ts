@@ -122,20 +122,22 @@ describe("order tokens and money", () => {
     expect(isValidOrderToken(123)).toBe(false);
   });
 
-  it("recognises ISO-4217 style currency codes only", () => {
-    expect(isValidCurrency("USD")).toBe(true);
+  it("accepts PKR and nothing else", () => {
+    expect(isValidCurrency("PKR")).toBe(true);
+    expect(isValidCurrency("pkr")).toBe(true);
+    expect(isValidCurrency("USD")).toBe(false);
     expect(isValidCurrency("eur")).toBe(false);
     expect(isValidCurrency("US")).toBe(false);
-    expect(isValidCurrency("USDD")).toBe(false);
+    expect(isValidCurrency("PKRR")).toBe(false);
     expect(isValidCurrency(null)).toBe(false);
   });
 
   it("formats authoritative minor-unit totals without floating point drift", () => {
-    expect(formatMinorUnits(4500, "USD")).toBe("USD 45.00");
-    expect(formatMinorUnits(0, "USD")).toBe("USD 0.00");
-    expect(formatMinorUnits(5, "USD")).toBe("USD 0.05");
-    expect(formatMinorUnits(10200, "EUR")).toBe("EUR 102.00");
-    expect(formatMinorUnits(999999, "GBP")).toBe("GBP 9999.99");
+    expect(formatMinorUnits(4500)).toBe("PKR 45.00");
+    expect(formatMinorUnits(0)).toBe("PKR 0.00");
+    expect(formatMinorUnits(5)).toBe("PKR 0.05");
+    expect(formatMinorUnits(10200)).toBe("PKR 102.00");
+    expect(formatMinorUnits(999999)).toBe("PKR 9999.99");
   });
 
   it("keeps one label source for the snapshot", () => {

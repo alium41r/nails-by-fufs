@@ -92,7 +92,6 @@ function sweep(label: string) {
         descriptor: "FORGED",
         description: "FORGED",
         price: "1.00",
-        currency: "USD",
         shape: "FORGED",
         defaultLength: "Long",
         finish: "FORGED",
@@ -234,7 +233,6 @@ function sweep(label: string) {
         addressLines: "",
         country: "",
         jurisdiction: "",
-        defaultCurrency: "USD",
         socials: [],
       });
       expect(settings.ok).toBe(false);
@@ -375,7 +373,6 @@ describe("a signed-in non-admin request", () => {
       descriptor: "",
       description: "",
       price: "",
-      currency: "",
       shape: "FORGED",
       defaultLength: "Medium",
       finish: "",

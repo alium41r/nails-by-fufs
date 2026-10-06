@@ -192,6 +192,8 @@ Prisma is used strictly as an ORM and type-safe query client. **Prisma never run
    ```
    `supabase/seed.sql` holds the real catalogue content. Every statement upserts on `slug`, so re-running updates rows in place instead of duplicating them. It deliberately never writes prices (`price_minor` / `currency` stay NULL) and never writes `product_images` — the project has no image files or Storage bucket, so inserting rows would mean inventing image metadata.
 
+   **Currency:** the store prices in **PKR only**, and the database enforces it (`products_currency_pkr`, `orders_currency_pkr`, `order_items_currency_pkr`). There is no currency setting and no picker anywhere in the app — a price is a whole number of paisa, formatted as `PKR 4,500.00` by `src/lib/currency.ts`. See `supabase/migrations/20261006120000_pkr_only_currency.sql`.
+
 ---
 
 ### Operational Reference: Database Scenarios

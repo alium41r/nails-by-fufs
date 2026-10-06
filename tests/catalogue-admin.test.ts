@@ -33,26 +33,20 @@ import type {
  * change what either surface is allowed to persist.
  */
 
-describe("catalogue validation: price pair", () => {
-  it("treats both empty as unpriced", () => {
-    expect(parsePricePair("", "")).toEqual({ ok: true, priceMinor: null, currency: null });
+describe("catalogue validation: price", () => {
+  it("treats an empty price as unpriced, with no currency", () => {
+    expect(parsePricePair("")).toEqual({ ok: true, priceMinor: null, currency: null });
   });
 
-  it("accepts a complete pair and normalises the currency", () => {
-    expect(parsePricePair("4500", "usd")).toEqual({ ok: true, priceMinor: 4500, currency: "USD" });
-    expect(parsePricePair("0", "GBP")).toEqual({ ok: true, priceMinor: 0, currency: "GBP" });
+  it("accepts a price and always stores it as PKR", () => {
+    expect(parsePricePair("4500")).toEqual({ ok: true, priceMinor: 4500, currency: "PKR" });
+    expect(parsePricePair("0")).toEqual({ ok: true, priceMinor: 0, currency: "PKR" });
   });
 
-  it("rejects a half-set pair in both directions", () => {
-    expect(parsePricePair("4500", "").ok).toBe(false);
-    expect(parsePricePair("", "USD").ok).toBe(false);
-  });
-
-  it("rejects non-integer, negative and malformed currencies", () => {
-    expect(parsePricePair("45.5", "USD").ok).toBe(false);
-    expect(parsePricePair("-1", "USD").ok).toBe(false);
-    expect(parsePricePair("4500", "DOLLARS").ok).toBe(false);
-    expect(parsePricePair("4500", "us").ok).toBe(false);
+  it("rejects non-integer and negative prices", () => {
+    expect(parsePricePair("45.5").ok).toBe(false);
+    expect(parsePricePair("-1").ok).toBe(false);
+    expect(parsePricePair("nonsense").ok).toBe(false);
   });
 });
 
@@ -208,7 +202,6 @@ const product: StudioProductManagement = {
   tag: "New",
   included: ["Ten nails"],
   priceMinor: 4550,
-  currency: "USD",
   isActive: false,
   featured: true,
   displayOrder: 4,
@@ -255,7 +248,7 @@ describe("management projection", () => {
     expect(view.isActive).toBe(false);
     expect(view.featured).toBe(true);
     expect(view.displayOrder).toBe(4);
-    expect(view.price).toBe("USD 45.50");
+    expect(view.price).toBe("PKR 45.50");
   });
 
   it("orders the gallery primary-first and derives labels from the real name", () => {

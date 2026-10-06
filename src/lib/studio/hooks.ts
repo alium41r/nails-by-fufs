@@ -12,6 +12,7 @@ import {
   managementToCatalogueView,
   managementToCollectionView,
   normalizeManagedImages,
+  PRICE_PLACEHOLDER,
   studioToCatalogueImages,
 } from "./derive";
 import { useStudioManagement } from "./management";
@@ -81,7 +82,7 @@ export function useStudioProduct(product: CatalogueProduct): MergedProduct {
         ...base,
         isActive: true,
         featured: false,
-        isUnpriced: base.price === "$XX",
+        isUnpriced: base.price === PRICE_PLACEHOLDER,
         isDraft: false,
         displayOrder: null,
       } as MergedProduct;

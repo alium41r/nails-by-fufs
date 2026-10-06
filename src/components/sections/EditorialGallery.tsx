@@ -5,6 +5,7 @@ import { ImagePlaceholder } from "@/components/media/ImagePlaceholder";
 import { StudioContent } from "@/components/studio/StudioContent";
 import { StudioImageControl } from "@/components/studio/StudioImageSlot";
 import { studioImageGroupClass } from "@/lib/studio/image-slot-class";
+import { siteAssetUrl } from "@/lib/site-content";
 import type { GalleryContent } from "@/lib/site-content-schema";
 
 /**
@@ -65,7 +66,8 @@ export async function EditorialGallery({ content }: { content: GalleryContent })
               >
                 <ImagePlaceholder
                   ratio={item.ratio}
-                  src={item.imagePath ?? null}
+                  src={siteAssetUrl(item.imagePath)}
+                  alt={item.alt}
                   label={item.label}
                   sublabel={item.sublabel}
                   interactive

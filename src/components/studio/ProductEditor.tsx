@@ -4,14 +4,13 @@ import React, { useEffect, useRef, useState } from "react";
 import type { CatalogueProduct } from "@/lib/catalogue";
 import type { StudioProductManagement } from "@/lib/admin/studio-management";
 import { parsePrice } from "@/lib/studio/derive";
-import { currenciesForPicker, majorUnitsHint } from "@/lib/currency";
+import { majorUnitsHint, STORE_CURRENCY } from "@/lib/currency";
 import { useStudio } from "@/lib/studio/hooks";
 import { useStudioManagement } from "@/lib/studio/management";
 import type { ProductDraft } from "@/lib/studio/types";
 import {
   StudioField,
   StudioInput,
-  StudioSelect,
   StudioSwitch,
   StudioTextArea,
 } from "./fields";
@@ -19,15 +18,6 @@ import { Check, RotateCcw, AlertTriangle, Images } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProductEditorProps {
-  /**
-   * The store's configured default currency.
-   *
-   * Passed in rather than assumed, because it is owner-managed: it decides which
-   * currency a first-time price entry starts on, and it labels the storefront's
-   * no-price placeholder. It never rewrites a stored price — an existing product
-   * keeps whatever currency it was priced in.
-   */
-  storeCurrency?: string;
   /**
    * The authoritative management record. Every field the editor shows comes from
    * here, which is the only source carrying the real `is_active`, `featured`,
@@ -75,23 +65,20 @@ export function ProductEditor({
   product,
   focusField,
   onClose,
-  storeCurrency,
 }: ProductEditorProps) {
   const { state, patchProduct, openImageManager } = useStudio();
   const { saveProduct, rebaseProduct } = useStudioManagement();
   const draft = state.productDrafts[product.id] || {};
 
   /**
-   * The saved values, in minor units. Taken from the management record rather
+   * The saved price, in minor units. Taken from the management record rather
    * than parsed back out of a formatted price string, so pre-filling and
-   * reverting cannot lose precision or invent a currency.
+   * reverting cannot lose precision.
    */
   const basePrice = {
     priceMinor: management.priceMinor,
-    currency: management.currency,
     amount: management.priceMinor === null ? "" : (management.priceMinor / 100).toFixed(2),
   };
-  const initialCurrency = draft.currency ?? basePrice.currency ?? storeCurrency ?? "USD";
   const initialPriceStr =
     draft.priceMinor !== undefined
       ? draft.priceMinor === null
@@ -103,7 +90,6 @@ export function ProductEditor({
   const [name, setName] = useState(draft.name ?? product.name);
   const [descriptor, setDescriptor] = useState(draft.descriptor ?? product.descriptor);
   const [description, setDescription] = useState(draft.description ?? product.description);
-  const [currency, setCurrency] = useState(initialCurrency);
   const [priceStr, setPriceStr] = useState(initialPriceStr);
   const [shape, setShape] = useState(draft.shape ?? product.shape ?? "Almond");
   const [length, setLength] = useState<"Short" | "Medium" | "Long">(
@@ -165,13 +151,12 @@ export function ProductEditor({
       return;
     }
 
-    const parsed = parsePrice(priceStr, currency);
+    const parsed = parsePrice(priceStr);
     const updatedDraft: ProductDraft = {
       name: trimmedName,
       descriptor: descriptor.trim(),
       description: description.trim(),
       priceMinor: parsed.priceMinor,
-      currency: parsed.currency,
       shape: shape.trim(),
       length,
       finish: finish.trim(),
@@ -214,7 +199,6 @@ export function ProductEditor({
     setName(management.name);
     setDescriptor(management.descriptor);
     setDescription(management.description);
-    setCurrency(management.currency ?? storeCurrency ?? "USD");
     setPriceStr(management.priceMinor === null ? "" : (management.priceMinor / 100).toFixed(2));
     setShape(management.shape);
     setLength(management.defaultLength);
@@ -303,27 +287,21 @@ export function ProductEditor({
           />
         </StudioField>
 
-        {/* Price & Currency */}
+        {/* Price */}
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-1">
             <StudioField label="Currency" htmlFor="studio-field-currency">
-              <StudioSelect
+              {/*
+                A fixed value, not a select. The store prices in PKR and nothing
+                else, and the previous dropdown offered USD, GBP, EUR and more —
+                which is exactly how a rupee store gets a dollar price.
+              */}
+              <p
                 id="studio-field-currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
+                className="flex h-9 items-center rounded-xs border border-white/10 bg-white/5 px-3 text-sm text-muted-foreground"
               >
-                {/*
-                  Driven by @/lib/currency rather than a hardcoded list: the old
-                  five options had no PKR, which is the currency this studio
-                  actually prices in, and the store's configured default now
-                  appears first.
-                */}
-                {currenciesForPicker(storeCurrency).map((option) => (
-                  <option key={option.code} value={option.code}>
-                    {option.code} ({option.symbol})
-                  </option>
-                ))}
-              </StudioSelect>
+                {STORE_CURRENCY}
+              </p>
             </StudioField>
           </div>
 
@@ -331,7 +309,7 @@ export function ProductEditor({
             <StudioField
               label="Price"
               htmlFor="studio-field-price"
-              hint={!priceStr ? "Leave empty for the no-price placeholder" : majorUnitsHint(currency)}
+              hint={!priceStr ? "Leave empty for the no-price placeholder" : majorUnitsHint()}
             >
               <div className="relative">
                 <StudioInput
@@ -341,7 +319,7 @@ export function ProductEditor({
                   min="0"
                   value={priceStr}
                   onChange={(e) => setPriceStr(e.target.value)}
-                  placeholder="e.g. 48.00"
+                  placeholder="e.g. 4500.00"
                 />
               </div>
             </StudioField>
@@ -352,9 +330,8 @@ export function ProductEditor({
           <div className="p-2.5 bg-rose-500/10 border border-rose-400/30 text-rose-600 dark:text-rose-400 text-[11px] flex items-center gap-2 rounded-xs">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             <span>
-              Unpriced items display the no-price placeholder on the storefront. Pick a currency above
-              and enter an amount to make this set checkout-eligible. Existing prices are never
-              converted between currencies.
+              Unpriced items display the no-price placeholder on the storefront. Enter an amount
+              above to make this set checkout-eligible. It is always a {STORE_CURRENCY} amount.
             </span>
           </div>
         )}

@@ -57,7 +57,6 @@ const DOCUMENT_KEYS = [
   CONTENT_KEYS.announcement,
   CONTENT_KEYS.identity,
   CONTENT_KEYS.contact,
-  CONTENT_KEYS.currency,
   CONTENT_KEYS.socials,
   CONTENT_KEYS.navMain,
   CONTENT_KEYS.navMobile,

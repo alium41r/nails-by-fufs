@@ -16,8 +16,13 @@ import { ProductImageUploader } from "@/components/admin/ProductImageUploader";
 import { ProductLifecyclePanel } from "@/components/admin/CatalogueLifecyclePanels";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getPrisma } from "@/lib/prisma/db";
-import { getSiteBasics } from "@/lib/site-content";
-import { CURRENCIES, isPriced, majorUnitsHint, pricePlaceholder } from "@/lib/currency";
+import {
+  STORE_CURRENCY,
+  STORE_CURRENCY_LABEL,
+  isPriced,
+  majorUnitsHint,
+  pricePlaceholder,
+} from "@/lib/currency";
 import {
   AdminPageHeader,
   AdminSection,
@@ -55,9 +60,8 @@ const IMAGE_BUCKET_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/,
  *     the specific problems, instead of five competing badges;
  *   - each group is a titled section with normal-case labels, so the form reads as
  *     a document rather than a spec sheet;
- *   - the price field explains minor units in terms of the currency actually
- *     selected, and the currency list is the picker's (which now includes PKR)
- *     with the store's configured default first;
+ *   - the price field explains minor units in terms of the store's one currency,
+ *     PKR, which is shown as a fixed value rather than a one-option picker;
  *   - a direct link to edit the same product visually in Studio Mode, because
  *     for wording and photography that is faster than a form.
  *
@@ -107,7 +111,7 @@ export default async function AdminProductPage({
 
   // Ordered separately: the partial unique index makes products -> product_images
   // a 1:1 relation in Prisma, so the gallery is queried directly.
-  const [images, collections, { defaultCurrency }] = await Promise.all([
+  const [images, collections] = await Promise.all([
     prisma.product_images.findMany({
       where: { product_id: product.id },
       orderBy: [{ sort_order: "asc" }, { id: "asc" }],
@@ -118,10 +122,9 @@ export default async function AdminProductPage({
       orderBy: [{ display_order: { sort: "asc", nulls: "last" } }, { title: "asc" }],
       select: { id: true, title: true },
     }),
-    getSiteBasics(),
   ]);
 
-  const priced = isPriced(product.price_minor, product.currency);
+  const priced = isPriced(product.price_minor);
   const hiddenCollection = product.collections
     ? !product.collections.is_active || product.collections.archived_at !== null
     : false;
@@ -144,13 +147,6 @@ export default async function AdminProductPage({
       : product.is_active
         ? { label: "Live", tone: "positive" as const }
         : { label: "Draft", tone: "neutral" as const };
-
-  const activeCurrency = product.currency ?? defaultCurrency;
-  const currencyChoices = CURRENCIES.some((entry) => entry.code === product.currency)
-    ? CURRENCIES
-    : product.currency
-      ? [{ code: product.currency, symbol: product.currency, label: "Current", decimals: 2 }, ...CURRENCIES]
-      : CURRENCIES;
 
   return (
     <div className="flex max-w-3xl flex-col gap-8">
@@ -398,7 +394,7 @@ export default async function AdminProductPage({
       {/* ── Price ───────────────────────────────────────────────────────── */}
       <AdminSection
         title="Price"
-        description="A set becomes buyable only when it has both a price and a currency."
+        description={`A set becomes buyable once it has a price. Every price in this store is in ${STORE_CURRENCY}.`}
         divided
       >
         <form action={updateProductPriceAction} className="flex flex-col gap-5">
@@ -406,22 +402,27 @@ export default async function AdminProductPage({
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-[10rem_1fr]">
             <Field label="Currency" htmlFor="p-currency">
-              <Select id="p-currency" name="currency" defaultValue={product.currency ?? defaultCurrency}>
-                {currencyChoices.map((entry) => (
-                  <option key={entry.code} value={entry.code}>
-                    {entry.code} ({entry.symbol})
-                  </option>
-                ))}
-              </Select>
+              {/*
+                Not a select. The store prices in one currency, so a dropdown
+                would be a control with a single option — and the previous one
+                offered USD, GBP, EUR and more, which is how a rupee store could
+                be given a dollar price by a mis-click.
+              */}
+              <p
+                id="p-currency"
+                className="flex h-10 items-center rounded-md border border-border bg-surface-subtle/60 px-3 text-sm text-muted-foreground"
+              >
+                {STORE_CURRENCY} — {STORE_CURRENCY_LABEL}
+              </p>
             </Field>
 
             <Field
-              label="Price"
+              label="Price (paisa)"
               htmlFor="p-price"
               hint={
                 priced
-                  ? majorUnitsHint(activeCurrency)
-                  : `Leave both empty to keep it unpriced — the storefront then shows ${pricePlaceholder(defaultCurrency)}.`
+                  ? majorUnitsHint()
+                  : `Leave empty to keep it unpriced — the storefront then shows ${pricePlaceholder()}.`
               }
             >
               <TextInput
@@ -437,9 +438,8 @@ export default async function AdminProductPage({
           </div>
 
           <p className="rounded-md bg-surface-subtle/60 px-3.5 py-3 text-xs leading-relaxed text-muted-foreground">
-            Changing the currency here never converts the amount — it relabels it. Prices are stored
-            exactly as typed, so switch currency and re-enter the figure if the set is now sold in a
-            different one.
+            Prices are stored as a whole number of paisa and shown in {STORE_CURRENCY}. There is no
+            other currency to switch to, and nothing here converts an amount.
           </p>
 
           <div>

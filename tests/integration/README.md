@@ -46,8 +46,9 @@ node scripts/checks/restore-seeded-content.mjs --all     # repair from the seed
 
 `content.e2e.test.ts` also heals the two fields a killed run can damage, before
 adopting its baseline: a blank announcement message is rewritten with the wording
-the storefront already falls back to, and a non-shipped default currency is reset
-to the value the migration seeds. It logs what it healed.
+the storefront already falls back to, and a leftover `site.currency` row — the
+retired setting, since the store now prices in PKR only — is deleted. It logs
+what it healed.
 
 That healing replaces an earlier guard which *threw* on the same conditions. That
 guard was worse than the problem: an exception in `beforeAll` prevents `afterAll`

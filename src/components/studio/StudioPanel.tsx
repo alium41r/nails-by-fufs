@@ -239,7 +239,6 @@ export function StudioPanel() {
                 product={resolvedProduct}
                 focusField={activePanel.focusField}
                 onClose={closePanel}
-                storeCurrency={management.defaultCurrency}
               />
             ) : (
               <div className="p-8 text-center text-sm text-muted-foreground">

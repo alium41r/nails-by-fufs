@@ -97,7 +97,13 @@ async function putToStorage(signedUrl: string, file: File, failureMessage: strin
   if (!response.ok) throw new Error(failureMessage);
 }
 
-/** Builds the server payload from a product draft. */
+/**
+ * Builds the server payload from a product draft.
+ *
+ * No currency travels with it. The server derives the stored code from
+ * `@/lib/currency`, which is what makes it impossible for a client — or a stale
+ * cached bundle — to price a product in anything but rupees.
+ */
 function productPayload(productId: string, draft: ProductDraft, expectedUpdatedAt: string) {
   const priceMinor = draft.priceMinor ?? null;
   const hasPrice = priceMinor !== null;
@@ -111,7 +117,6 @@ function productPayload(productId: string, draft: ProductDraft, expectedUpdatedA
     // The editor drafts minor units; the server takes a formatted amount and
     // re-derives them, exactly as the admin price form does.
     price: hasPrice ? (priceMinor / 100).toFixed(2) : "",
-    currency: hasPrice ? (draft.currency ?? "") : "",
     shape: draft.shape ?? "",
     defaultLength: draft.length ?? "Medium",
     finish: draft.finish ?? "",

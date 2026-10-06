@@ -59,7 +59,6 @@ export default async function AdminContentPage() {
           ...content.identity,
           ...content.contact,
           addressLines: content.contact.addressLines.join("\n"),
-          defaultCurrency: content.currency.default,
           socials: content.socials.map((social) => ({ label: social.label, href: social.href })),
         }}
       />

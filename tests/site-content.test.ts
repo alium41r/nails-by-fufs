@@ -15,7 +15,6 @@ import {
   isValidLinkHref,
   parseAnnouncement,
   parseContact,
-  parseCurrency,
   parseGallery,
   parseIdentity,
   parsePolicy,
@@ -26,13 +25,12 @@ import {
   tokenValues,
 } from "@/lib/site-content-schema";
 import {
-  CURRENCIES,
-  FALLBACK_CURRENCY,
-  currenciesForPicker,
+  CURRENCY_PATTERN,
+  STORE_CURRENCY,
   formatPrice,
   isPriced,
+  isStoreCurrency,
   majorUnitsHint,
-  normalizeCurrency,
   pricePlaceholder,
 } from "@/lib/currency";
 import { PUBLIC_PRODUCT_FILTER, PUBLIC_COLLECTION_FILTER, toProductView, type ProductRow } from "@/lib/catalogue";
@@ -207,56 +205,46 @@ describe("policy tokens", () => {
 });
 
 describe("currency", () => {
-  it("offers PKR", () => {
-    expect(CURRENCIES.some((currency) => currency.code === "PKR")).toBe(true);
+  it("is PKR and only PKR", () => {
+    expect(STORE_CURRENCY).toBe("PKR");
+    // The shape rule the `char(3)` columns and the database CHECKs use.
+    expect(CURRENCY_PATTERN.test(STORE_CURRENCY)).toBe(true);
   });
 
-  it("validates a code the way the database CHECK does", () => {
-    expect(normalizeCurrency("pkr")).toBe("PKR");
-    expect(normalizeCurrency("usdd")).toBeNull();
-    expect(normalizeCurrency("")).toBeNull();
-    expect(normalizeCurrency(null)).toBeNull();
+  it("accepts the store currency and rejects every other code", () => {
+    expect(isStoreCurrency("pkr")).toBe(true);
+    expect(isStoreCurrency("PKR")).toBe(true);
+    expect(isStoreCurrency("USD")).toBe(false);
+    expect(isStoreCurrency("GBP")).toBe(false);
+    expect(isStoreCurrency("EUR")).toBe(false);
+    expect(isStoreCurrency("")).toBe(false);
+    expect(isStoreCurrency(null)).toBe(false);
+    expect(isStoreCurrency(undefined)).toBe(false);
   });
 
-  it("labels the no-price placeholder with the configured currency's symbol", () => {
-    // Byte-identical to the literal "$XX" the storefront rendered before the
-    // migration, for the currency it was already using.
-    expect(pricePlaceholder("USD")).toBe("$XX");
-    expect(pricePlaceholder("PKR")).toBe("RsXX");
-    expect(pricePlaceholder(null)).toBe(`${CURRENCIES.find((c) => c.code === FALLBACK_CURRENCY)!.symbol}XX`);
+  it("labels the no-price placeholder with the store currency", () => {
+    expect(pricePlaceholder()).toBe("PKR XX");
   });
 
-  it("never converts a stored price, whatever the store's default is", () => {
-    // The default currency must not touch an existing price. A product priced in
-    // USD keeps rendering as USD even when the store default becomes PKR.
-    expect(formatPrice(4500, "USD")).toBe("USD 45.00");
-    expect(formatPrice(4500, "PKR")).toBe("PKR 45.00");
-    expect(formatPrice(null, null)).toBe("$XX");
+  it("formats every price in PKR, whatever a row claims", () => {
+    // The stored code is not a formatting input: a legacy row cannot make the
+    // storefront render a currency the store does not accept.
+    expect(formatPrice(4500)).toBe("PKR 45.00");
+    expect(formatPrice(450000)).toBe("PKR 4500.00");
+    expect(formatPrice(null)).toBe("PKR XX");
+    expect(formatPrice(undefined)).toBe("PKR XX");
   });
 
-  it("treats a price without a currency as not a price", () => {
-    expect(isPriced(1000, "USD")).toBe(true);
-    expect(isPriced(1000, null)).toBe(false);
-    expect(isPriced(null, "USD")).toBe(false);
+  it("treats a missing amount as not a price", () => {
+    expect(isPriced(1000)).toBe(true);
+    expect(isPriced(0)).toBe(true);
+    expect(isPriced(null)).toBe(false);
+    expect(isPriced(undefined)).toBe(false);
   });
 
-  it("puts the configured default first in the picker", () => {
-    expect(currenciesForPicker("PKR")[0].code).toBe("PKR");
-    expect(currenciesForPicker("USD")[0].code).toBe("USD");
-    // A stored code outside the list stays selectable rather than being silently
-    // rewritten.
-    expect(currenciesForPicker("JPY")[0].code).toBe("JPY");
-  });
-
-  it("explains minor units per currency", () => {
-    expect(majorUnitsHint("PKR")).toContain("PKR");
-    expect(majorUnitsHint("USD")).toContain("45.00");
-  });
-
-  it("parses a stored default and refuses junk", () => {
-    expect(parseCurrency({ default: "pkr" }).default).toBe("PKR");
-    expect(parseCurrency({ default: "nonsense" }).default).toBe("USD");
-    expect(parseCurrency(undefined).default).toBe("USD");
+  it("explains minor units in rupees", () => {
+    expect(majorUnitsHint()).toContain("PKR");
+    expect(majorUnitsHint()).toContain("4,500.00");
   });
 });
 
@@ -302,10 +290,10 @@ describe("product view mapping", () => {
     expect(view.collectionName).toBe("");
   });
 
-  it("uses the store currency only for the placeholder", () => {
-    expect(toProductView(row, [], "PKR").price).toBe("RsXX");
-    expect(toProductView({ ...row, price_minor: 1000, currency: "USD" }, [], "PKR").price).toBe(
-      "USD 10.00",
+  it("shows the placeholder when unpriced and PKR when priced", () => {
+    expect(toProductView(row, []).price).toBe("PKR XX");
+    expect(toProductView({ ...row, price_minor: 1000, currency: "PKR" }, []).price).toBe(
+      "PKR 10.00",
     );
   });
 });

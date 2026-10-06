@@ -4,12 +4,10 @@ import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { resetContentDocumentAction, saveStoreSettings } from "@/app/admin/content-actions";
-import { CURRENCIES } from "@/lib/currency";
 import { AdminSection } from "@/components/admin/ui/primitives";
 import {
   AdminButton,
   Field,
-  Select,
   TextArea,
   TextInput,
 } from "@/components/admin/ui/controls";
@@ -30,7 +28,6 @@ export interface StoreSettingsValues {
   addressLines: string;
   country: string;
   jurisdiction: string;
-  defaultCurrency: string;
   socials: { label: string; href: string }[];
 }
 
@@ -68,14 +65,15 @@ function ResetButton({
 /**
  * Store settings.
  *
- * ## The same seventeen fields, in a readable order
+ * ## The same fields, in a readable order
  *
  * Every setting the previous form exposed is still here and still submits to the
  * same action. What changed is grouping and disclosure:
  *
- *   - **Business name**, the details a customer actually sees, and the default
- *     currency are always visible, because they are what an owner comes here to
- *     change.
+ *   - **Business name** and the details a customer actually sees are always
+ *     visible, because they are what an owner comes here to change.
+ *     (A "default currency" setting used to sit beside them; it is gone, because
+ *     the store prices in PKR and nothing else.)
  *   - **Search and sharing** (four title/description fields that only affect
  *     browser tabs, link previews and search results) moved behind a disclosure.
  *     They matter, but they are not what "settings" usually means, and they were
@@ -246,37 +244,6 @@ export function StoreSettingsForm({ values }: { values: StoreSettingsValues }) {
             />
           </Field>
         </div>
-      </AdminSection>
-
-      {/* ── Currency ────────────────────────────────────────────────────── */}
-      <AdminSection
-        title="Default currency"
-        description="The currency new prices start in, and the one used to label a product that has no price yet."
-        actions={<ResetButton contentKey="site.currency" description="the default currency" pending={pending} onReset={reset} />}
-        divided
-      >
-        <Field label="Currency" htmlFor="s-currency" className="max-w-xs">
-          <Select
-            id="s-currency"
-            value={form.defaultCurrency}
-            onChange={(event) => set("defaultCurrency", event.target.value)}
-          >
-            {!CURRENCIES.some((currency) => currency.code === form.defaultCurrency) && (
-              <option value={form.defaultCurrency}>{form.defaultCurrency} (current)</option>
-            )}
-            {CURRENCIES.map((currency) => (
-              <option key={currency.code} value={currency.code}>
-                {currency.code} — {currency.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <p className="rounded-md bg-surface-subtle/60 px-3.5 py-3 text-xs leading-relaxed text-muted-foreground">
-          Changing this does <strong className="font-medium">not</strong> convert or rewrite any
-          existing price — every product keeps the currency it was priced in. To move a set to a
-          different currency, change it on that product and re-enter the figure.
-        </p>
       </AdminSection>
 
       {/* ── Socials ─────────────────────────────────────────────────────── */}

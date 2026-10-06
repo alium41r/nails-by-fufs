@@ -200,14 +200,16 @@ export default async function AdminProductPage({
         ) : (
           <ul className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70 bg-surface">
             {images.map((image, index) => (
-              <li key={image.id} className="flex flex-col gap-3 p-4">
-                <div className="flex items-start gap-4">
-                  <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-border/70 bg-surface-subtle">
+              <li key={image.id} className="flex flex-col gap-3 p-3 sm:p-4">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  {/* Same 4:5 frame the catalogue list and the storefront use, so
+                      a photo is cropped the same way wherever it appears. */}
+                  <span className="relative aspect-[4/5] w-14 shrink-0 overflow-hidden rounded-md border border-border/70 bg-surface-subtle sm:w-16">
                     {/* eslint-disable-next-line @next/next/no-img-element -- external Storage URL; next/image needs remotePatterns config */}
                     <img
                       src={`${IMAGE_BUCKET_URL}/${image.storage_path}`}
                       alt={image.alt_text || `${product.name} photo ${index + 1}`}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-center"
                     />
                   </span>
 
@@ -225,7 +227,7 @@ export default async function AdminProductPage({
                       <Field
                         label="Description for screen readers"
                         htmlFor={`alt-${image.id}`}
-                        className="min-w-[12rem] flex-1"
+                        className="w-full min-w-0 flex-1 sm:min-w-[12rem]"
                         optional
                       >
                         <TextInput
@@ -235,19 +237,22 @@ export default async function AdminProductPage({
                           placeholder="e.g. Almond set with a deep cherry gloss finish"
                         />
                       </Field>
-                      <AdminButton type="submit" size="sm">
+                      <AdminButton type="submit" size="sm" className="w-full sm:w-auto">
                         Save
                       </AdminButton>
                     </form>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 pl-20">
+                {/* Indented to line up with the alt-text field on wider screens;
+                    on a phone the buttons take the full width so they are
+                    comfortably tappable instead of sharing a 256px row. */}
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2 sm:pl-20">
                   {!image.is_primary && (
-                    <form action={setPrimaryProductImageAction}>
+                    <form action={setPrimaryProductImageAction} className="col-span-2 sm:col-span-1">
                       <input type="hidden" name="product_id" value={product.id} />
                       <input type="hidden" name="image_id" value={image.id} />
-                      <AdminButton type="submit" size="sm">
+                      <AdminButton type="submit" size="sm" className="w-full sm:w-auto">
                         Make main photo
                       </AdminButton>
                     </form>
@@ -262,18 +267,19 @@ export default async function AdminProductPage({
                         type="submit"
                         size="sm"
                         variant="ghost"
+                        className="w-full sm:w-auto"
                         disabled={direction === "up" ? index === 0 : index === images.length - 1}
                         aria-label={`Move photo ${index + 1} ${direction}`}
                       >
-                        {direction === "up" ? "↑" : "↓"}
+                        {direction === "up" ? "↑ Move up" : "↓ Move down"}
                       </AdminButton>
                     </form>
                   ))}
 
-                  <form action={deleteProductImageAction} className="ml-auto">
+                  <form action={deleteProductImageAction} className="col-span-2 sm:col-span-1 sm:ml-auto">
                     <input type="hidden" name="product_id" value={product.id} />
                     <input type="hidden" name="image_id" value={image.id} />
-                    <AdminButton type="submit" size="sm" variant="danger">
+                    <AdminButton type="submit" size="sm" variant="danger" className="w-full sm:w-auto">
                       Remove
                     </AdminButton>
                   </form>

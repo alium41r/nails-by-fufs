@@ -86,12 +86,21 @@ export function StudioContent({
       title={`Studio Mode: edit ${target.label}`}
     >
       {children}
+      {/*
+        The edit trigger.
+
+        It used to be `opacity-0` until hover, and the click handler on the wrapper
+        only fires when the tap lands on *this* button — so on a touch screen the
+        owner had to find an invisible target, and tapping the words themselves did
+        nothing. `hover-reveal` makes the trigger permanently visible where hover
+        does not exist; desktop still reveals it on hover only.
+      */}
       <button
         type="button"
         tabIndex={-1}
         aria-hidden="true"
         className={cn(
-          "studio-content-trigger inline-flex items-center gap-1 px-1.5 py-0.5 ml-1.5 align-middle",
+          "studio-content-trigger touch-target hover-reveal inline-flex items-center justify-center gap-1 px-1.5 py-0.5 ml-1.5 align-middle",
           "text-[9px] font-mono uppercase tracking-wider cursor-pointer",
           "bg-stone-950/90 text-stone-100 border border-stone-800 rounded-xs shadow-xs",
           "opacity-0 group-hover/studio-content:opacity-100 focus-visible:opacity-100 transition-opacity duration-150",

@@ -276,12 +276,18 @@ export function StudioContentEditor({
         </p>
       )}
 
-      <div className="sticky bottom-0 -mx-5 mt-2 flex items-center gap-2 border-t border-border bg-background/95 px-5 py-3 backdrop-blur">
+      {/*
+        Sticky action bar. It wraps on a phone so that "Save changes" gets a full
+        row of its own — the three controls do not fit one 320–390px line, and the
+        previous single line pushed "Restore original" onto a second row with no
+        space reserved for it.
+      */}
+      <div className="sticky bottom-0 -mx-5 mt-2 flex flex-wrap items-center gap-2 border-t border-border bg-background/95 px-5 py-3 backdrop-blur">
         <button
           type="button"
           disabled={pending || !dirty}
           onClick={save}
-          className="inline-flex h-10 items-center gap-1.5 rounded-md bg-foreground px-4 text-[13px] font-medium text-background transition-opacity disabled:opacity-40"
+          className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-foreground px-4 text-[13px] font-medium text-background transition-opacity disabled:opacity-40 sm:w-auto"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Saving…" : "Save changes"}

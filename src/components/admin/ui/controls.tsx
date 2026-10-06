@@ -41,7 +41,13 @@ export function Field({
 }) {
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={htmlFor} className="flex items-baseline gap-2 text-[13px] font-medium text-foreground">
+      {/* `flex-wrap` because "Description for screen readers · optional" is wider
+          than a 320px phone's field column, and a label that cannot wrap pushes
+          the whole row sideways. */}
+      <label
+        htmlFor={htmlFor}
+        className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[13px] font-medium text-foreground"
+      >
         {label}
         {optional && <span className="text-[11px] font-normal text-muted-foreground">optional</span>}
       </label>
@@ -131,14 +137,18 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {
-  sm: "h-9 px-3 text-[13px]",
-  // 44px: comfortable on touch, and the size most admin actions use.
-  md: "h-10 px-4 text-[13px]",
+  // 44px on a phone: the minimum comfortable touch target. It relaxes to the
+  // denser desktop height from `sm` up, where a finger is not the input device.
+  sm: "h-10 px-3 text-[13px] sm:h-9",
+  md: "h-11 px-4 text-[13px] sm:h-10",
 };
 
 export function adminButtonClass(variant: ButtonVariant = "secondary", size: ButtonSize = "md") {
   return cn(
-    "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors",
+    // `whitespace-nowrap`: a two-word label splitting across lines inside a
+    // fixed-height button is the single most common way these controls broke on a
+    // narrow screen ("Add / product"). The row is expected to wrap instead.
+    "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30",
     "disabled:pointer-events-none disabled:opacity-45",
     BUTTON_VARIANTS[variant],
@@ -180,17 +190,20 @@ export function RowActionsMenu({
   label = "More actions",
   children,
   align = "right",
+  className,
 }: {
   label?: string;
   children: React.ReactNode;
   align?: "left" | "right";
+  /** Lets a caller place the trigger in its own responsive layout. */
+  className?: string;
 }) {
   return (
-    <details className="group relative shrink-0">
+    <details className={cn("group relative shrink-0", className)}>
       <summary
         aria-label={label}
         title={label}
-        className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground"
+        className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground"
       >
         <span aria-hidden="true" className="text-base leading-none tracking-widest">
           ···

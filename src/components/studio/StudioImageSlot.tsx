@@ -112,7 +112,9 @@ export function StudioImageControl({
     <div
       className={cn(
         "absolute right-2 top-2 z-30 flex items-center gap-1.5",
-        "opacity-0 transition-opacity duration-150 group-hover/studio-image:opacity-100",
+        // `hover-reveal` keeps this visible on touch devices, where the
+        // `group-hover` that reveals it can never fire — see globals.css.
+        "hover-reveal opacity-0 transition-opacity duration-150 group-hover/studio-image:opacity-100",
         "focus-within:opacity-100",
         className,
       )}
@@ -132,7 +134,7 @@ export function StudioImageControl({
         type="button"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
-        className="inline-flex items-center gap-1 rounded-xs border border-stone-800 bg-stone-950/90 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-stone-100 shadow-xs hover:bg-stone-900 disabled:opacity-60 cursor-pointer"
+        className="touch-target inline-flex items-center justify-center gap-1 rounded-xs border border-stone-800 bg-stone-950/90 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-stone-100 shadow-xs hover:bg-stone-900 disabled:opacity-60 cursor-pointer"
         title={`Upload ${label}`}
       >
         {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <ImagePlus className="h-2.5 w-2.5 text-accent" />}
@@ -142,7 +144,7 @@ export function StudioImageControl({
         type="button"
         disabled={busy}
         onClick={() => void upload(new File([], "clear"), "clear")}
-        className="inline-flex items-center rounded-xs border border-stone-800 bg-stone-950/90 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-stone-300 shadow-xs hover:text-rose-300 disabled:opacity-60 cursor-pointer"
+        className="touch-target inline-flex items-center justify-center rounded-xs border border-stone-800 bg-stone-950/90 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-stone-300 shadow-xs hover:text-rose-300 disabled:opacity-60 cursor-pointer"
         title={`Remove ${label}`}
       >
         Clear

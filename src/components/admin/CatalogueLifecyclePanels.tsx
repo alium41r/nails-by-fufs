@@ -150,7 +150,7 @@ export function ProductLifecyclePanel({
           <button
             type="button"
             onClick={() => setShowDelete(true)}
-            className="text-[13px] text-muted-foreground transition-colors hover:text-rose-600 dark:hover:text-rose-400"
+            className="touch-target inline-flex items-center text-[13px] text-muted-foreground transition-colors hover:text-rose-600 dark:hover:text-rose-400"
           >
             Delete permanently…
           </button>
@@ -307,7 +307,7 @@ export function CollectionLifecyclePanel({
             <button
               type="button"
               onClick={() => setShowDelete(true)}
-              className="text-[13px] text-muted-foreground transition-colors hover:text-rose-600 dark:hover:text-rose-400"
+              className="touch-target inline-flex items-center text-[13px] text-muted-foreground transition-colors hover:text-rose-600 dark:hover:text-rose-400"
             >
               Delete permanently…
             </button>

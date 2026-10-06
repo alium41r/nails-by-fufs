@@ -498,12 +498,14 @@ export function ProductEditor({
         </div>
       </div>
 
-      {/* Footer Actions */}
-      <div className="flex items-center justify-between gap-3 pt-4 border-t border-border mt-2 sticky bottom-0 bg-surface py-2">
+      {/* Footer Actions.
+          The bar stays on one line and every control is at least 36px tall, which
+          is what makes it usable with a thumb at the bottom of a phone screen. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border mt-2 sticky bottom-0 bg-surface py-2">
         <button
           type="button"
           onClick={handleRevert}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          className="touch-target inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Revert</span>
@@ -513,7 +515,7 @@ export function ProductEditor({
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            className="touch-target inline-flex items-center justify-center px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             Close
           </button>
@@ -521,7 +523,7 @@ export function ProductEditor({
             type="button"
             disabled={isSaving}
             onClick={handleSaveDraft}
-            className="px-4 py-2 bg-foreground text-background text-xs font-mono uppercase tracking-[0.16em] rounded-xs hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-50"
+            className="touch-target inline-flex items-center justify-center px-4 py-2 bg-foreground text-background text-xs font-mono uppercase tracking-[0.16em] rounded-xs hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-50"
           >
             {isSaving ? "Saving..." : "Save Draft"}
           </button>

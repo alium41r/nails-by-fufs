@@ -131,49 +131,53 @@ export function CatalogueCollections({
       {creating && <CatalogueCreateCollection onClose={() => setCreating(false)} />}
 
       {selected.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-4 py-3">
-          <span className="text-[13px] font-medium text-foreground">{selected.length} selected</span>
-          <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
-          {(
-            [
-              ["activate", "Publish"],
-              ["deactivate", "Unpublish"],
-              ["feature", "Feature"],
-            ] as const
-          ).map(([action, label]) => (
-            <AdminButton
-              key={action}
-              size="sm"
-              disabled={pending}
-              onClick={() => run(() => bulkUpdateCollections({ collectionIds: selected, action }))}
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:px-4">
+          <div className="flex items-center justify-between gap-2 sm:contents">
+            <span className="text-[13px] font-medium text-foreground">{selected.length} selected</span>
+            <button
+              type="button"
+              onClick={() => setSelected([])}
+              className="text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:order-last sm:ml-auto"
             >
-              {label}
+              Clear
+            </button>
+          </div>
+          <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+          <div className="grid grid-cols-2 gap-2 sm:contents">
+            {(
+              [
+                ["activate", "Publish"],
+                ["deactivate", "Unpublish"],
+                ["feature", "Feature"],
+              ] as const
+            ).map(([action, label]) => (
+              <AdminButton
+                key={action}
+                size="sm"
+                disabled={pending}
+                onClick={() => run(() => bulkUpdateCollections({ collectionIds: selected, action }))}
+              >
+                {label}
+              </AdminButton>
+            ))}
+            <AdminButton
+              size="sm"
+              variant="attention"
+              disabled={pending}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Archive ${selected.length} collection${selected.length === 1 ? "" : "s"}? Their products are hidden from the storefront too, until restored.`,
+                  )
+                ) {
+                  return;
+                }
+                run(() => bulkUpdateCollections({ collectionIds: selected, action: "archive" }));
+              }}
+            >
+              Archive
             </AdminButton>
-          ))}
-          <AdminButton
-            size="sm"
-            variant="attention"
-            disabled={pending}
-            onClick={() => {
-              if (
-                !window.confirm(
-                  `Archive ${selected.length} collection${selected.length === 1 ? "" : "s"}? Their products are hidden from the storefront too, until restored.`,
-                )
-              ) {
-                return;
-              }
-              run(() => bulkUpdateCollections({ collectionIds: selected, action: "archive" }));
-            }}
-          >
-            Archive
-          </AdminButton>
-          <button
-            type="button"
-            onClick={() => setSelected([])}
-            className="ml-auto text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Clear
-          </button>
+          </div>
         </div>
       )}
 
@@ -194,7 +198,7 @@ export function CatalogueCollections({
           }
         />
       ) : (
-        <ul className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70 bg-surface">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/70 bg-surface [&>li:first-child]:rounded-t-lg [&>li:last-child]:rounded-b-lg">
           {visible.map((row) => {
             const status = primaryStatus(row);
             const isSelected = selected.includes(row.id);
@@ -206,7 +210,7 @@ export function CatalogueCollections({
               <li
                 key={row.id}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-3 transition-colors sm:gap-4 sm:px-4",
+                  "flex items-start gap-3 px-3 py-3 transition-colors sm:items-center sm:gap-4 sm:px-4",
                   isSelected ? "bg-accent-subtle/40" : "hover:bg-surface-subtle/50",
                 )}
               >
@@ -215,12 +219,14 @@ export function CatalogueCollections({
                   checked={isSelected}
                   onChange={() => toggle(row.id)}
                   aria-label={`Select ${row.title}`}
-                  className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+                  className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)] sm:mt-0"
                 />
 
+                {/* Same 4:5 frame in both states, so a row does not change shape
+                    when a cover is uploaded. */}
                 <Link
                   href={`/admin/collections/${row.id}`}
-                  className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border/70 bg-surface-subtle"
+                  className="relative aspect-[4/5] w-11 shrink-0 overflow-hidden rounded-md border border-border/70 bg-surface-subtle sm:w-12"
                   tabIndex={-1}
                   aria-hidden="true"
                 >
@@ -230,7 +236,7 @@ export function CatalogueCollections({
                       src={`${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "")}/storage/v1/object/public/product-images/${row.coverPath}`}
                       alt=""
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-center"
                     />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-muted-foreground/50">
@@ -239,22 +245,35 @@ export function CatalogueCollections({
                   )}
                 </Link>
 
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <Link
-                    href={`/admin/collections/${row.id}`}
-                    className="truncate text-sm font-medium text-foreground transition-colors hover:text-accent"
-                  >
-                    {row.title}
-                  </Link>
-                  <span className="truncate text-[13px] text-muted-foreground">
-                    {live} product{live === 1 ? "" : "s"}
-                    {row.featured ? " · featured" : ""}
+                {/* Three-line card on a phone, the original identity stack from
+                    `sm` up — see the product list for the same reasoning. */}
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <Link
+                      href={`/admin/collections/${row.id}`}
+                      className="min-w-0 truncate text-sm font-medium text-foreground transition-colors hover:text-accent"
+                    >
+                      {row.title}
+                    </Link>
+
+                    <span className="min-w-0 truncate text-[13px] text-muted-foreground">
+                      {live} product{live === 1 ? "" : "s"}
+                      {row.featured ? " · featured" : ""}
+                    </span>
+
+                    <span className="mt-1 sm:hidden">
+                      <StatusPill tone={status.tone} title={status.title}>
+                        {status.label}
+                      </StatusPill>
+                    </span>
+                  </div>
+
+                  <span className="hidden shrink-0 sm:block">
+                    <StatusPill tone={status.tone} title={status.title}>
+                      {status.label}
+                    </StatusPill>
                   </span>
                 </div>
-
-                <StatusPill tone={status.tone} title={status.title}>
-                  {status.label}
-                </StatusPill>
 
                 <RowActionsMenu label={`Actions for ${row.title}`}>
                   <Link

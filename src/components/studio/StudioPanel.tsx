@@ -185,104 +185,122 @@ export function StudioPanel() {
         onClick={closePanel}
       />
 
-      {/* Slide-over panel */}
+      {/* Slide-over panel.
+          A full-screen sheet below `sm` and a 420–460px drawer above it, so the
+          same editor works as a phone screen and as a side panel. */}
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={`Studio Mode: ${panelTitle}`}
-        className="fixed top-11 bottom-0 right-0 z-50 w-full sm:w-[420px] lg:w-[460px] bg-surface border-l border-border shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200"
+        className="fixed top-11 bottom-0 right-0 z-50 flex w-full flex-col bg-surface border-l border-border shadow-2xl animate-in slide-in-from-right duration-200 sm:w-[420px] lg:w-[460px]"
       >
-        {/* Close Button Anchor */}
-        <div className="absolute top-4 right-4 z-10">
+        {/*
+          Panel chrome, as a real bar rather than a floating button.
+          
+          The close control used to be `absolute top-4 right-4`, which put it on
+          top of whatever each editor rendered in its own top-right corner — in the
+          content editor that is the "View page" link, and the two overlapped
+          exactly at phone width. A fixed header cannot collide with the content it
+          sits above, keeps the dismiss affordance in the same place in every
+          editor, and stays put while the form scrolls.
+        */}
+        <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface px-3">
+          <span className="min-w-0 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            {panelTitle}
+          </span>
           <button
             ref={closeButtonRef}
             type="button"
             onClick={closePanel}
             aria-label="Close Studio Panel"
-            className="p-1.5 text-muted-foreground hover:text-foreground bg-surface-subtle/80 hover:bg-surface-subtle rounded-xs border border-border transition-colors cursor-pointer"
+            className="touch-target -mr-1 inline-flex items-center justify-center rounded-xs border border-border bg-surface-subtle/80 p-1.5 text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content based on panel type.
+        {/* The scroll container. Scrolling happens here, inside the panel, rather
+            than on the page behind it — which is locked while the sheet is open. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {/* Content based on panel type.
 
-            Each editor is keyed by the record it is editing *and* its version, so
-            a save (which advances `updatedAt`) remounts the form on the values the
-            server just returned. Without the version in the key, a successful save
-            would leave the owner looking at the form state they typed rather than
-            the record that was stored. */}
-        {activePanel.type === "product" &&
-          (management.isLoading && !managedProduct ? (
-            <EditorLoading />
-          ) : resolvedProduct && managedProduct ? (
-            <ProductEditor
-              key={`${managedProduct.id}:${managedProduct.updatedAt}`}
-              management={managedProduct}
-              product={resolvedProduct}
-              focusField={activePanel.focusField}
-              onClose={closePanel}
-              storeCurrency={management.defaultCurrency}
-            />
-          ) : (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              This product is not in the catalogue. Reload the page to refresh.
-            </div>
-          ))}
-
-        {activePanel.type === "content" &&
-          (contentDocument ? (
-            <div className="p-5">
-              <StudioContentEditor
-                key={`${contentDocument.document.key}:${JSON.stringify(contentDocument.document.value).length}`}
-                document={contentDocument.document}
-                onSaved={() => void refreshManagement()}
+              Each editor is keyed by the record it is editing *and* its version, so
+              a save (which advances `updatedAt`) remounts the form on the values the
+              server just returned. Without the version in the key, a successful save
+              would leave the owner looking at the form state they typed rather than
+              the record that was stored. */}
+          {activePanel.type === "product" &&
+            (management.isLoading && !managedProduct ? (
+              <EditorLoading />
+            ) : resolvedProduct && managedProduct ? (
+              <ProductEditor
+                key={`${managedProduct.id}:${managedProduct.updatedAt}`}
+                management={managedProduct}
+                product={resolvedProduct}
+                focusField={activePanel.focusField}
+                onClose={closePanel}
+                storeCurrency={management.defaultCurrency}
               />
-            </div>
-          ) : (
-            <EditorLoading />
-          ))}
+            ) : (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                This product is not in the catalogue. Reload the page to refresh.
+              </div>
+            ))}
 
-        {activePanel.type === "collection" &&
-          (management.isLoading && !managedCollection ? (
-            <EditorLoading />
-          ) : resolvedCollection && managedCollection ? (
-            <CollectionEditor
-              key={`${managedCollection.id}:${managedCollection.updatedAt}`}
-              management={managedCollection}
-              collection={resolvedCollection}
-              focusField={activePanel.focusField}
-              onClose={closePanel}
-            />
-          ) : (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              This collection is not in the catalogue. Reload the page to refresh.
-            </div>
-          ))}
+          {activePanel.type === "content" &&
+            (contentDocument ? (
+              <div className="p-5">
+                <StudioContentEditor
+                  key={`${contentDocument.document.key}:${JSON.stringify(contentDocument.document.value).length}`}
+                  document={contentDocument.document}
+                  onSaved={() => void refreshManagement()}
+                />
+              </div>
+            ) : (
+              <EditorLoading />
+            ))}
 
-        {activePanel.type === "images" &&
-          (management.isLoading && !managedProduct ? (
-            <EditorLoading />
-          ) : resolvedProduct && managedProduct ? (
-            <ImageManager
-              key={`images:${managedProduct.id}`}
-              product={resolvedProduct}
-              onClose={closePanel}
-            />
-          ) : (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              Product photos not found.
-            </div>
-          ))}
+          {activePanel.type === "collection" &&
+            (management.isLoading && !managedCollection ? (
+              <EditorLoading />
+            ) : resolvedCollection && managedCollection ? (
+              <CollectionEditor
+                key={`${managedCollection.id}:${managedCollection.updatedAt}`}
+                management={managedCollection}
+                collection={resolvedCollection}
+                focusField={activePanel.focusField}
+                onClose={closePanel}
+              />
+            ) : (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                This collection is not in the catalogue. Reload the page to refresh.
+              </div>
+            ))}
 
-        {management.loadError && (
-          <div
-            role="alert"
-            className="mx-4 mb-4 mt-2 p-3 bg-rose-500/10 border border-rose-400/40 text-rose-600 dark:text-rose-400 text-xs rounded-xs"
-          >
-            {management.loadError}
-          </div>
-        )}
+          {activePanel.type === "images" &&
+            (management.isLoading && !managedProduct ? (
+              <EditorLoading />
+            ) : resolvedProduct && managedProduct ? (
+              <ImageManager
+                key={`images:${managedProduct.id}`}
+                product={resolvedProduct}
+                onClose={closePanel}
+              />
+            ) : (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                Product photos not found.
+              </div>
+            ))}
+
+          {management.loadError && (
+            <div
+              role="alert"
+              className="mx-4 mb-4 mt-2 p-3 bg-rose-500/10 border border-rose-400/40 text-rose-600 dark:text-rose-400 text-xs rounded-xs"
+            >
+              {management.loadError}
+            </div>
+          )}
+        </div>
       </aside>
     </>
   );

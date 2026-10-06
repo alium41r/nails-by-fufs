@@ -119,9 +119,48 @@ html[data-studio-active="true"] header.sticky {
   top: 2.75rem;
 }
 
+/*
+ * The same offset for the admin drawer's mobile top bar, which is `sticky top-0`
+ * and would otherwise slide underneath the Studio toolbar when Studio Mode is
+ * entered from the Control Center.
+ */
+html[data-studio-active="true"] .admin-shell > .sticky.top-0 {
+  top: 2.75rem;
+}
+
 @media (min-width: 1024px) {
   html[data-studio-active="true"] .lg\:top-28 {
     top: 9.75rem;
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   Touch affordances.
+
+   Studio Mode hangs some of its controls directly on the content they act on —
+   the image upload/clear pair sits on top of the photograph, and the edit
+   affordances sit on the text. That is the right shape with a mouse: the control
+   is revealed by hovering the thing it belongs to. It is the wrong shape on a
+   touch screen, where there is no hover state at all, so:
+
+     .hover-reveal   stays visible when the device has no hover to reveal it with
+     .touch-target   grows a deliberately small control to a fingertip's size
+
+   Both are scoped to the capability being compensated for, so the desktop
+   experience is byte-for-byte what it was.
+   -------------------------------------------------------------------------- */
+
+@media (hover: none) {
+  .hover-reveal {
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 2.25rem;
+    min-width: 2.25rem;
   }
 }
 

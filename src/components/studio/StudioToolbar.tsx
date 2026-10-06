@@ -82,9 +82,9 @@ export function StudioToolbar() {
         )}
       >
         {/* Left: Indicator & Status */}
-        <div className="flex items-center gap-2.5 sm:gap-4">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span
                 className={cn(
                   "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
@@ -99,8 +99,19 @@ export function StudioToolbar() {
               />
             </span>
 
-            <span className="font-mono text-[11px] uppercase tracking-[0.2em] font-semibold text-stone-200">
-              Studio Mode
+            {/*
+              The wordmark shortens rather than disappearing: "STUDIO MODE" is how
+              the owner knows the storefront is in an editing state at all, and on a
+              320px screen it is the difference between the toolbar and the top
+              actions fitting on one line. It is `aria-hidden` because the region
+              already carries the same words as its accessible name.
+            */}
+            <span
+              aria-hidden="true"
+              className="truncate font-mono text-[11px] uppercase tracking-[0.2em] font-semibold text-stone-200"
+            >
+              <span className="hidden min-[380px]:inline">Studio Mode</span>
+              <span className="min-[380px]:hidden">Studio</span>
             </span>
           </div>
 
@@ -121,22 +132,31 @@ export function StudioToolbar() {
           {pendingCount > 0 && (
             <span
               title="Local drafts held in this browser session. Nothing has been published."
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider bg-emerald-950/80 text-emerald-300 border border-emerald-800/80"
+              className="inline-flex shrink-0 items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider bg-emerald-950/80 text-emerald-300 border border-emerald-800/80"
             >
-              <CheckCircle2 className="w-3 h-3" />
-              {pendingCount} {pendingCount === 1 ? "draft" : "drafts"}
+              <CheckCircle2 className="w-3 h-3 shrink-0" />
+              {pendingCount}
+              <span className="hidden sm:inline">
+                {" "}
+                {pendingCount === 1 ? "draft" : "drafts"}
+              </span>
             </span>
           )}
         </div>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Right: Actions.
+            Icon-only below `sm`, where there is no room for the labels — so each
+            control carries an `aria-label` as well as its desktop `title`, and
+            grows to a fingertip-sized target. */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
           {/* Preview as Customer Toggle */}
           <button
             type="button"
             onClick={() => setPreviewMode(!isPreviewMode)}
+            aria-label={isPreviewMode ? "Resume editing" : "Preview as a customer"}
+            aria-pressed={isPreviewMode}
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-mono rounded-xs transition-colors cursor-pointer",
+              "touch-target inline-flex items-center justify-center gap-1.5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-mono rounded-xs transition-colors cursor-pointer",
               isPreviewMode
                 ? "bg-amber-500 text-stone-950 font-medium hover:bg-amber-400"
                 : "bg-stone-900 text-stone-300 hover:text-stone-100 hover:bg-stone-800 border border-stone-800"
@@ -152,7 +172,8 @@ export function StudioToolbar() {
           {/* Link to Admin Control Center */}
           <Link
             href="/admin"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-mono bg-stone-900 text-stone-300 hover:text-stone-100 hover:bg-stone-800 border border-stone-800 rounded-xs transition-colors"
+            aria-label="Open the Admin Control Center"
+            className="touch-target inline-flex items-center justify-center gap-1.5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-mono bg-stone-900 text-stone-300 hover:text-stone-100 hover:bg-stone-800 border border-stone-800 rounded-xs transition-colors"
             title="Open traditional Admin Control Center"
           >
             <Sliders className="w-3.5 h-3.5" />
@@ -163,7 +184,8 @@ export function StudioToolbar() {
           <button
             type="button"
             onClick={handleExitClick}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-mono text-stone-400 hover:text-stone-100 hover:bg-stone-900 rounded-xs transition-colors cursor-pointer"
+            aria-label="Exit Studio Mode"
+            className="touch-target inline-flex items-center justify-center gap-1.5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-mono text-stone-400 hover:text-stone-100 hover:bg-stone-900 rounded-xs transition-colors cursor-pointer"
             title="Exit Studio Mode"
           >
             <LogOut className="w-3.5 h-3.5" />

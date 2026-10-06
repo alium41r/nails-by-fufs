@@ -464,7 +464,7 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
                               type="button"
                               disabled={busy}
                               onClick={() => handleSetPrimary(img.id)}
-                              className="p-1 text-muted-foreground hover:text-accent disabled:opacity-30 transition-colors cursor-pointer"
+                              className="touch-target inline-flex items-center justify-center p-1 text-muted-foreground hover:text-accent disabled:opacity-30 transition-colors cursor-pointer"
                               title="Make this the cover photograph"
                               aria-label={`Make shot 0${idx + 1} the cover photograph`}
                             >
@@ -477,7 +477,7 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
                             type="button"
                             disabled={isFirst || busy}
                             onClick={() => handleMove(img.id, "up")}
-                            className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors cursor-pointer"
+                            className="touch-target inline-flex items-center justify-center p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors cursor-pointer"
                             title="Move up"
                             aria-label={`Move shot 0${idx + 1} up`}
                           >
@@ -489,7 +489,7 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
                             type="button"
                             disabled={isLast || busy}
                             onClick={() => handleMove(img.id, "down")}
-                            className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors cursor-pointer"
+                            className="touch-target inline-flex items-center justify-center p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors cursor-pointer"
                             title="Move down"
                             aria-label={`Move shot 0${idx + 1} down`}
                           >
@@ -508,7 +508,7 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
                                 replaceInputRef.current.click();
                               }
                             }}
-                            className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors cursor-pointer"
+                            className="touch-target inline-flex items-center justify-center p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors cursor-pointer"
                             title="Replace photograph"
                             aria-label={`Replace shot 0${idx + 1}`}
                           >
@@ -520,7 +520,7 @@ export function ImageManager({ product, onClose }: ImageManagerProps) {
                             type="button"
                             disabled={busy}
                             onClick={() => handleDelete(img.id)}
-                            className="p-1 text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors cursor-pointer"
+                            className="touch-target inline-flex items-center justify-center p-1 text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors cursor-pointer"
                             title="Remove photograph"
                             aria-label={`Remove shot 0${idx + 1}`}
                           >

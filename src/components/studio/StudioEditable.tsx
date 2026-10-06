@@ -60,12 +60,18 @@ export function StudioEditable({
     >
       {children}
 
-      {/* Floating hover badge */}
+      {/* Floating edit badge.
+
+          `hover-reveal` keeps it on screen where there is no hover to reveal it
+          with: on a touch screen this badge is the only thing that says the text
+          underneath can be edited at all, since `title` never appears and the
+          hover outline never fires. Desktop is unchanged — the class only applies
+          under `@media (hover: none)`. */}
       <button
         type="button"
         tabIndex={-1}
         className={cn(
-          "studio-edit-trigger inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider",
+          "studio-edit-trigger touch-target hover-reveal inline-flex items-center justify-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider",
           "bg-stone-950/90 text-stone-100 border border-stone-800 rounded-xs shadow-xs pointer-events-none select-none",
           "opacity-0 group-hover/editable:opacity-100 transition-opacity duration-150",
           inline ? "ml-1.5" : "absolute -top-2.5 right-0 z-20"

@@ -196,27 +196,42 @@ export default async function AdminOverviewPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
             {[...attention, ...queue].map((entry) => (
+              /*
+                A compact card on a phone: the count sits in its own column beside
+                the wording rather than above it. Stacked, each of these was ~150px
+                of near-empty card and six of them pushed the quick actions and the
+                recent lists far below the fold — on the one screen whose whole job
+                is to be read at a glance.
+              */
               <Link
                 key={entry.key}
                 href={entry.href}
-                className="group flex flex-col gap-2 rounded-lg border border-border/70 bg-surface p-5 transition-colors hover:border-foreground/20 hover:bg-surface-subtle/40"
+                className="group flex items-center gap-4 rounded-lg border border-border/70 bg-surface p-4 transition-colors hover:border-foreground/20 hover:bg-surface-subtle/40 sm:flex-col sm:items-stretch sm:gap-2 sm:p-5"
               >
-                <span className="flex items-baseline justify-between gap-3">
-                  <span className="font-display text-3xl leading-none text-foreground">
+                <span className="flex w-10 shrink-0 items-baseline justify-center sm:w-auto sm:justify-between sm:gap-3">
+                  <span className="font-display text-3xl leading-none tabular-nums text-foreground">
                     {entry.count}
                   </span>
                   <span
                     aria-hidden="true"
-                    className="text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                    className="hidden text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:inline"
                   >
                     →
                   </span>
                 </span>
-                <span className="text-sm font-medium text-foreground">{entry.title}</span>
-                <span className="text-[13px] leading-relaxed text-muted-foreground">
-                  {entry.description}
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:gap-1">
+                  <span className="text-sm font-medium text-foreground">{entry.title}</span>
+                  <span className="text-[13px] leading-relaxed text-muted-foreground">
+                    {entry.description}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:hidden"
+                >
+                  →
                 </span>
               </Link>
             ))}

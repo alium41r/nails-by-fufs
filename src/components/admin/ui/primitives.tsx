@@ -51,7 +51,7 @@ export function AdminPageHeader({
       {back && (
         <Link
           href={back.href}
-          className="inline-flex w-fit items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          className="touch-target -ml-1 inline-flex w-fit items-center gap-1.5 rounded-md px-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
         >
           <span aria-hidden="true">←</span>
           {back.label}
@@ -291,16 +291,29 @@ export function AdminToolbar({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="relative flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         {search && <div className="min-w-0 flex-1">{search}</div>}
 
         <div className="flex shrink-0 items-center gap-2">
           {filters && (
-            <details className="group relative">
+            /*
+              `w-full` on a phone so the Filters control and the primary action
+              share the row as two equal, comfortable targets instead of one wide
+              button beside a narrow one.
+
+              The panel is positioned against the *toolbar* below `sm` (the
+              `<details>` is `static` there) rather than against the summary, so it
+              opens across the full width instead of into the ~150px column the
+              summary occupies. A popover anchored to a right-aligned control is
+              also the shape that ends up hanging off a 320px screen; full width
+              cannot. From `sm` up the details is the anchor again and the panel is
+              the usual right-aligned popover.
+            */
+            <details className="group static min-w-0 flex-1 sm:relative sm:w-auto sm:flex-none">
               <summary
                 className={cn(
-                  "flex h-10 cursor-pointer list-none items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-medium text-foreground transition-colors hover:border-foreground/25 hover:bg-surface-subtle",
+                  "flex h-11 cursor-pointer list-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border px-3 text-[13px] font-medium text-foreground transition-colors hover:border-foreground/25 hover:bg-surface-subtle sm:h-10 sm:justify-start",
                   activeFilterCount > 0 && "border-foreground/25 bg-surface-subtle",
                 )}
               >
@@ -314,7 +327,7 @@ export function AdminToolbar({
                 </span>
               </summary>
 
-              <div className="absolute right-0 z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-border bg-surface p-4 shadow-lg">
+              <div className="absolute top-full right-0 left-0 z-30 mt-2 max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface p-4 shadow-lg sm:left-auto sm:w-[min(22rem,calc(100vw-2rem))]">
                 {filters}
               </div>
             </details>
@@ -339,6 +352,11 @@ export function AdminToolbar({
  * Links rather than client state: every view is a real URL, so it can be
  * bookmarked, shared, reloaded and reached with the back button. The counts come
  * from the same rows the list renders, so they cannot disagree with it.
+ *
+ * On a phone the strip scrolls horizontally, and does so full-bleed: the negative
+ * gutter lets the first and last tab reach the screen edge, so it reads as a
+ * deliberate swipeable row rather than as content that has been cut off. The
+ * scrollbar is hidden because the partially-visible tab is the affordance.
  */
 export function AdminSegmentedNav({
   items,
@@ -350,7 +368,8 @@ export function AdminSegmentedNav({
   return (
     <nav
       className={cn(
-        "-mx-1 flex items-center gap-1 overflow-x-auto border-b border-border/70 pb-px",
+        "-mx-4 flex items-center gap-1 overflow-x-auto border-b border-border/70 px-4 pb-px sm:-mx-1 sm:px-1",
+        "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className,
       )}
       aria-label="Workspace views"
@@ -361,7 +380,7 @@ export function AdminSegmentedNav({
           href={item.href}
           aria-current={item.active ? "page" : undefined}
           className={cn(
-            "flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors",
+            "flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-[13px] font-medium transition-colors sm:py-2.5",
             item.active
               ? "border-accent text-foreground"
               : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",

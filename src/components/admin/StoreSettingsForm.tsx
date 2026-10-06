@@ -417,14 +417,21 @@ export function StoreSettingsForm({ values }: { values: StoreSettingsValues }) {
         </div>
       </details>
 
-      <div className="sticky bottom-4 flex items-center gap-3 rounded-lg border border-border bg-surface/95 px-4 py-3 backdrop-blur">
-        <AdminButton type="submit" variant="primary" disabled={pending}>
+      {/*
+        A sticky save bar, which matters most on a phone: this form is the longest
+        in the admin (seven sections plus a disclosure), and the save button was
+        otherwise a long scroll away from whichever field was just edited. On a
+        narrow screen the two controls stack and the primary action takes the full
+        width, so neither is a cramped target and neither wraps mid-label.
+      */}
+      <div className="sticky bottom-3 z-30 flex flex-col gap-2 rounded-lg border border-border bg-surface/95 p-3 backdrop-blur sm:bottom-4 sm:flex-row sm:items-center sm:gap-3 sm:px-4">
+        <AdminButton type="submit" variant="primary" disabled={pending} className="w-full sm:w-auto">
           {pending ? "Saving…" : "Save settings"}
         </AdminButton>
         <button
           type="button"
           onClick={() => setForm(values)}
-          className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          className="w-full rounded-md py-2 text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:w-auto sm:py-0"
         >
           Undo unsaved changes
         </button>

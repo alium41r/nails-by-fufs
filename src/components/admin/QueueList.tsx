@@ -112,16 +112,35 @@ export function AdminQueue({
       {items.length === 0 ? (
         <AdminEmptyState title={emptyTitle} description={emptyDescription} />
       ) : (
-        <ul className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70 bg-surface">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/70 bg-surface [&>li:first-child]:rounded-t-lg [&>li:last-child]:rounded-b-lg">
           {items.map((item) => (
             <li key={item.id}>
+              {/*
+                One row, two shapes.
+
+                On a phone the metadata that the desktop row keeps in its own
+                right-hand column (`meta`, and the "Open" affordance) moves onto a
+                second line under the request, so the title keeps the full width and
+                the status pill stays beside it rather than being pushed off. The
+                whole row is still a single link, so the tap target is unchanged.
+              */}
               <Link
                 href={item.href}
-                className="flex items-center justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-surface-subtle/50"
+                className="flex items-start justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-surface-subtle/50 sm:items-center sm:gap-4"
               >
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="truncate text-sm font-medium text-foreground">{item.title}</span>
+                  {/* `line-clamp-2` on a phone: an appointment's title is a date,
+                      a time and a name, which is three times the length of a
+                      product name and was being cut to one unreadable line. */}
+                  <span className="line-clamp-2 text-sm font-medium text-foreground sm:truncate">
+                    {item.title}
+                  </span>
                   <span className="truncate text-[13px] text-muted-foreground">{item.subtitle}</span>
+                  {item.meta && (
+                    <span className="text-[12px] text-muted-foreground/80 sm:hidden">
+                      {item.meta}
+                    </span>
+                  )}
                 </span>
 
                 {item.meta && (

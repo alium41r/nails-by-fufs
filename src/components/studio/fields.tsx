@@ -1,4 +1,5 @@
 import React from "react";
+import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FieldWrapperProps {
@@ -282,13 +283,19 @@ export function ContentStringList({
               onChange(next);
             }}
           />
+          {/*
+            Icon-only below `sm`: this button sits beside the textarea, and at
+            320px a spelled-out "Remove" was taking a third of the row from the
+            text being edited. It keeps its accessible name at every width.
+          */}
           <button
             type="button"
             onClick={() => onChange(values.filter((_, position) => position !== index))}
-            className="mt-1 shrink-0 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-rose-600 dark:hover:text-rose-400"
+            className="touch-target mt-1 inline-flex shrink-0 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-rose-600 dark:hover:text-rose-400"
             aria-label={`Remove ${addLabel.toLowerCase()} ${index + 1}`}
           >
-            Remove
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">Remove</span>
           </button>
         </div>
       ))}

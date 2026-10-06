@@ -139,9 +139,9 @@ export default async function AdminCollectionPage({
               <li key={product.id}>
                 <Link
                   href={`/admin/products/${product.id}`}
-                  className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-surface-subtle/50"
+                  className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-surface-subtle/50 sm:items-center sm:gap-4"
                 >
-                  <span className="truncate text-sm font-medium text-foreground">
+                  <span className="line-clamp-2 min-w-0 flex-1 text-sm font-medium text-foreground sm:truncate">
                     {product.name}
                   </span>
                   <StatusPill
@@ -170,12 +170,14 @@ export default async function AdminCollectionPage({
       >
         {collection.cover_image_path ? (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <span className="relative h-28 w-40 shrink-0 overflow-hidden rounded-md border border-border/70 bg-surface-subtle">
+            {/* A 3:2 frame, which is the ratio the collections index shows a cover
+                in — so this preview is the crop a customer actually gets. */}
+            <span className="relative aspect-[3/2] w-full max-w-[13.5rem] shrink-0 overflow-hidden rounded-md border border-border/70 bg-surface-subtle">
               {/* eslint-disable-next-line @next/next/no-img-element -- external Storage URL; next/image needs remotePatterns config */}
               <img
                 src={`${COVER_BUCKET_URL}/${collection.cover_image_path}`}
                 alt={`${collection.title} cover`}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-cover object-center"
               />
             </span>
             <div className="flex flex-col gap-3">

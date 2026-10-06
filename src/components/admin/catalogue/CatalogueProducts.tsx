@@ -143,6 +143,24 @@ export function CatalogueProducts({
     setPendingOrder({ base: serverOrderKey, ids: next });
   };
 
+  /**
+   * Moves one row by a single step.
+   *
+   * The keyboard- and touch-reachable equivalent of dragging: it produces the
+   * same `pendingOrder`, so the "Order changed — not saved yet" bar and the
+   * `Save order` write are shared rather than duplicated.
+   */
+  const moveBy = (id: string, delta: -1 | 1) => {
+    const current = orderedProducts.map((row) => row.id);
+    const from = current.indexOf(id);
+    const to = from + delta;
+    if (from === -1 || to < 0 || to >= current.length) return;
+    const next = [...current];
+    next.splice(from, 1);
+    next.splice(to, 0, id);
+    setPendingOrder({ base: serverOrderKey, ids: next });
+  };
+
   const toggle = (id: string) =>
     setSelected((current) =>
       current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id],
@@ -277,8 +295,11 @@ export function CatalogueProducts({
 
       {creating && <CatalogueCreateProduct onClose={() => setCreating(false)} collections={collections} />}
 
-      {/* View filters, each with its own count so the state is legible at a glance. */}
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* View filters, each with its own count so the state is legible at a glance.
+          A single swipeable strip on a phone — five labelled chips with counts do
+          not fit one line at 320px, and wrapping them onto two ragged lines makes
+          the counts harder to compare. From `sm` up they wrap normally. */}
+      <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
         {(
           [
             ["all", "All"],
@@ -293,7 +314,7 @@ export function CatalogueProducts({
             href={hrefFor({ filter: value === "all" ? "" : value })}
             aria-current={filter === value ? "page" : undefined}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] transition-colors",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-[13px] transition-colors sm:py-1.5",
               filter === value
                 ? "bg-foreground text-background"
                 : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
@@ -305,13 +326,27 @@ export function CatalogueProducts({
         ))}
       </div>
 
-      {/* Bulk actions exist only once something is selected. */}
+      {/* Bulk actions exist only once something is selected.
+
+          On a phone these are a two-column grid under a "N selected / Clear"
+          header rather than a wrapped row of five unequal buttons: a ragged wrap
+          puts the destructive Archive action wherever it happens to land, and
+          makes the whole bar two or three lines tall. */}
       {selected.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-4 py-3">
-          <span className="text-[13px] font-medium text-foreground">
-            {selected.length} selected
-          </span>
-          <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:px-4">
+          <div className="flex items-center justify-between gap-2 sm:contents">
+            <span className="text-[13px] font-medium text-foreground">
+              {selected.length} selected
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelected([])}
+              className="text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:order-last sm:ml-auto"
+            >
+              Clear
+            </button>
+          </div>
+          <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
 
           {filter === "archived" ? (
             <AdminButton
@@ -325,45 +360,65 @@ export function CatalogueProducts({
             </AdminButton>
           ) : (
             <>
-              <AdminButton
-                size="sm"
-                disabled={pending}
-                onClick={() =>
-                  run(() => bulkUpdateProducts({ productIds: selected, action: "activate" }))
-                }
-              >
-                Publish
-              </AdminButton>
-              <AdminButton
-                size="sm"
-                disabled={pending}
-                onClick={() =>
-                  run(() => bulkUpdateProducts({ productIds: selected, action: "deactivate" }))
-                }
-              >
-                Unpublish
-              </AdminButton>
-              <AdminButton
-                size="sm"
-                disabled={pending}
-                onClick={() =>
-                  run(() =>
-                    bulkUpdateProducts({
-                      productIds: selected,
-                      action: "feature",
-                    }),
-                  )
-                }
-              >
-                Feature
-              </AdminButton>
+              <div className="grid grid-cols-2 gap-2 sm:contents">
+                <AdminButton
+                  size="sm"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => bulkUpdateProducts({ productIds: selected, action: "activate" }))
+                  }
+                >
+                  Publish
+                </AdminButton>
+                <AdminButton
+                  size="sm"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => bulkUpdateProducts({ productIds: selected, action: "deactivate" }))
+                  }
+                >
+                  Unpublish
+                </AdminButton>
+                <AdminButton
+                  size="sm"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() =>
+                      bulkUpdateProducts({
+                        productIds: selected,
+                        action: "feature",
+                      }),
+                    )
+                  }
+                >
+                  Feature
+                </AdminButton>
 
-              <div className="flex items-center gap-1.5">
+                <AdminButton
+                  size="sm"
+                  variant="attention"
+                  disabled={pending}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        `Archive ${selected.length} product${selected.length === 1 ? "" : "s"}? They are hidden from the storefront and can be restored from Archived.`,
+                      )
+                    ) {
+                      return;
+                    }
+                    run(() => bulkUpdateProducts({ productIds: selected, action: "archive" }));
+                  }}
+                >
+                  Archive
+                </AdminButton>
+              </div>
+
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:gap-1.5">
                 <Select
                   value={assignTo}
                   onChange={(event) => setAssignTo(event.target.value)}
                   aria-label="Move selected products to a collection"
-                  className="h-9 w-auto text-[13px]"
+                  className="h-10 min-w-0 text-[13px] sm:h-9 sm:w-auto"
                 >
                   <option value="">Move to…</option>
                   <option value="none">No collection</option>
@@ -389,34 +444,8 @@ export function CatalogueProducts({
                   Move
                 </AdminButton>
               </div>
-
-              <AdminButton
-                size="sm"
-                variant="attention"
-                disabled={pending}
-                onClick={() => {
-                  if (
-                    !window.confirm(
-                      `Archive ${selected.length} product${selected.length === 1 ? "" : "s"}? They are hidden from the storefront and can be restored from Archived.`,
-                    )
-                  ) {
-                    return;
-                  }
-                  run(() => bulkUpdateProducts({ productIds: selected, action: "archive" }));
-                }}
-              >
-                Archive
-              </AdminButton>
             </>
           )}
-
-          <button
-            type="button"
-            onClick={() => setSelected([])}
-            className="ml-auto text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Clear
-          </button>
         </div>
       )}
 
@@ -474,7 +503,7 @@ export function CatalogueProducts({
           }
         />
       ) : (
-        <ul className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70 bg-surface">
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/70 bg-surface [&>li:first-child]:rounded-t-lg [&>li:last-child]:rounded-b-lg">
           {orderedProducts.map((row) => {
             const status = primaryStatus(row);
             const isSelected = selected.includes(row.id);
@@ -501,7 +530,7 @@ export function CatalogueProducts({
                     : undefined
                 }
                 className={cn(
-                  "group flex items-center gap-3 px-3 py-3 transition-colors sm:gap-4 sm:px-4",
+                  "group flex items-start gap-3 px-3 py-3 transition-colors sm:items-center sm:gap-4 sm:px-4",
                   isSelected ? "bg-accent-subtle/40" : "hover:bg-surface-subtle/50",
                   dragId === row.id && "opacity-60",
                 )}
@@ -511,14 +540,18 @@ export function CatalogueProducts({
                   checked={isSelected}
                   onChange={() => toggle(row.id)}
                   aria-label={`Select ${row.name}`}
-                  className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)]"
+                  className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent)] sm:mt-0"
                 />
 
-                {/* Thumbnail. A quiet placeholder rather than a badge when there is
-                    no photo — the status already says so. */}
+                {/*
+                  Thumbnail. A quiet placeholder rather than a badge when there is
+                  no photo — the status already says so. Both states use the same
+                  4:5 frame, which is the ratio product photography is shot in, so
+                  a row's geometry does not change when a photo is added.
+                */}
                 <Link
                   href={`/admin/products/${row.id}`}
-                  className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border/70 bg-surface-subtle"
+                  className="relative aspect-[4/5] w-11 shrink-0 overflow-hidden rounded-md border border-border/70 bg-surface-subtle sm:w-12"
                   tabIndex={-1}
                   aria-hidden="true"
                 >
@@ -528,7 +561,7 @@ export function CatalogueProducts({
                       src={`${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "")}/storage/v1/object/public/product-images/${row.imagePath}`}
                       alt=""
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-center"
                     />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-muted-foreground/50">
@@ -537,33 +570,67 @@ export function CatalogueProducts({
                   )}
                 </Link>
 
-                {/* Identity: name, then collection. The slug is not shown here — it
-                    is a detail, and it was previously rendered on every row. */}
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <Link
-                    href={`/admin/products/${row.id}`}
-                    className="truncate text-sm font-medium text-foreground transition-colors hover:text-accent"
-                  >
-                    {row.name}
-                  </Link>
-                  <span className="truncate text-[13px] text-muted-foreground">
-                    {row.collectionTitle ?? "No collection"}
+                {/*
+                  The row's body, laid out as two different shapes from one tree.
+
+                  On a phone it is a three-line card: the name, then the collection
+                  and price, then the status. The alternative — name and status
+                  sharing the first line — was tried and is worse at 320px: the pill
+                  is wide enough that the name elides to "Smoked Qua…", and sharing
+                  the second line with the metadata squeezes the collection to
+                  "The …". Stacking costs about 20px per row and keeps every value
+                  readable, which is the whole point of the card.
+
+                  The price is not in a side column on a phone because it was
+                  `hidden` there before — it moves into the metadata line instead of
+                  disappearing.
+
+                  From `sm` up the identity stacks again exactly as it did before,
+                  with the price and status back in their own columns.
+                */}
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <Link
+                      href={`/admin/products/${row.id}`}
+                      className="min-w-0 truncate text-sm font-medium text-foreground transition-colors hover:text-accent"
+                    >
+                      {row.name}
+                    </Link>
+
+                    <span className="min-w-0 truncate text-[13px] text-muted-foreground">
+                      {row.collectionTitle ?? "No collection"}
+                      <span className="tabular-nums sm:hidden"> · {row.priceLabel}</span>
+                    </span>
+
+                    <span className="mt-1 sm:hidden">
+                      <StatusPill
+                        tone={status.tone}
+                        title={row.issues.length > 0 ? row.issues.join(" · ") : undefined}
+                      >
+                        {status.label}
+                        {row.issues.length > 1 && (
+                          <span className="tabular-nums opacity-70">+{row.issues.length - 1}</span>
+                        )}
+                      </StatusPill>
+                    </span>
+                  </div>
+
+                  <span className="hidden shrink-0 text-[13px] tabular-nums text-muted-foreground sm:block">
+                    {row.priceLabel}
+                  </span>
+
+                  <span className="hidden shrink-0 sm:block">
+                    <StatusPill
+                      tone={status.tone}
+                      title={row.issues.length > 0 ? row.issues.join(" · ") : undefined}
+                    >
+                      {status.label}
+                      {row.issues.length > 1 && (
+                        <span className="tabular-nums opacity-70">+{row.issues.length - 1}</span>
+                      )}
+                    </StatusPill>
                   </span>
                 </div>
-
-                <span className="hidden shrink-0 text-[13px] tabular-nums text-muted-foreground sm:block">
-                  {row.priceLabel}
-                </span>
-
-                <StatusPill
-                  tone={status.tone}
-                  title={row.issues.length > 0 ? row.issues.join(" · ") : undefined}
-                >
-                  {status.label}
-                  {row.issues.length > 1 && (
-                    <span className="tabular-nums opacity-70">+{row.issues.length - 1}</span>
-                  )}
-                </StatusPill>
 
                 <RowActionsMenu label={`Actions for ${row.name}`}>
                   <Link
@@ -578,6 +645,32 @@ export function CatalogueProducts({
                   >
                     Edit in Studio
                   </Link>
+
+                  {/*
+                    Reordering used to be drag-only, which is a desktop gesture:
+                    HTML5 `draggable` fires nothing on a touch screen, so on a
+                    phone the catalogue order could not be changed at all. These
+                    two entries reuse the same local reorder and the same
+                    `reorderProducts` write the drag uses, so the two paths cannot
+                    disagree about what the order is.
+                  */}
+                  {canReorder && (
+                    <>
+                      <div className="my-1 h-px bg-border/70" aria-hidden="true" />
+                      <MenuItem
+                        disabled={pending || orderedProducts[0]?.id === row.id}
+                        onClick={() => moveBy(row.id, -1)}
+                      >
+                        Move up
+                      </MenuItem>
+                      <MenuItem
+                        disabled={pending || orderedProducts[orderedProducts.length - 1]?.id === row.id}
+                        onClick={() => moveBy(row.id, 1)}
+                      >
+                        Move down
+                      </MenuItem>
+                    </>
+                  )}
 
                   <div className="my-1 h-px bg-border/70" aria-hidden="true" />
 
@@ -621,7 +714,10 @@ export function CatalogueProducts({
 
       {orderedProducts.length > 0 && canReorder && (
         <p className="text-xs text-muted-foreground">
-          Drag a row to reorder. The order here is the order customers see.
+          Drag a row to reorder, or use <span className="font-medium">Move up</span> /{" "}
+          <span className="font-medium">Move down</span> in a row&rsquo;s menu — dragging needs a
+          mouse, so the menu is the way to do it on a touch screen. The order here is the order
+          customers see.
         </p>
       )}
     </div>

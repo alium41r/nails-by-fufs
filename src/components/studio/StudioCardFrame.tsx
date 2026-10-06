@@ -30,8 +30,19 @@ export function StudioCardFrame({
 }: StudioCardFrameProps) {
   const { isEditing, openProductEditor, openCollectionEditor } = useStudio();
 
+  /*
+   * For a customer the card is exactly what it wraps — the frame is an editing
+   * affordance and must add nothing. The exception is the same one `StudioContent`
+   * and `StudioEditable` make: a `className` handed *in* belongs to the page, not
+   * to the affordance, so it still has to be applied. `ProductCard` forwards its
+   * own `className` here, and dropping it would silently detach a card from
+   * whatever grid or sizing its caller placed it in.
+   */
   if (!isEditing) {
-    return <>{children}</>;
+    if (className === undefined) {
+      return <>{children}</>;
+    }
+    return <div className={className}>{children}</div>;
   }
 
   const handleEditClick = (e: React.MouseEvent) => {

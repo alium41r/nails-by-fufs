@@ -5,6 +5,32 @@ import { useStudio } from "@/lib/studio/hooks";
 import { Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Visual-edit affordance for a product's or collection's own text.
+ *
+ * ## What it promises, and what it used to break
+ *
+ * Callers hand this component the text *and* the element and styling that text
+ * should render as:
+ *
+ *     <StudioEditable as="h2" className="font-display text-3xl" …>{title}</StudioEditable>
+ *
+ * For a customer the affordance must disappear — but only the affordance. The
+ * old `return <>{children}</>` dropped the element along with it, so on every
+ * storefront page a collection `<h2>` became a bare text node with no class: no
+ * serif face, no size, no margins, and — because the three of them landed in one
+ * flex container — the tag, the title and the subtitle ran together as
+ * "Core ReleaseThe Core EditEveryday Neutrals & Sheer Finishes".
+ *
+ * The admin never saw it, because the admin is the one visitor who gets the
+ * wrapper. So the rule is now the same one `StudioContent` follows: a supplied
+ * `className` is the page's styling and renders in both modes; a call that
+ * supplies none is a pure affordance and still vanishes completely.
+ *
+ * The customer branch below is deliberately identical to the `editable={false}`
+ * branch in `StudioText`, which is the rendering this component was always
+ * supposed to degrade to.
+ */
 interface StudioEditableProps {
   entityType: "product" | "collection";
   id: string; // productId or collectionSlug
@@ -21,15 +47,23 @@ export function StudioEditable({
   id,
   field,
   label,
-  as: Component = "div",
+  as,
   inline = false,
   children,
   className,
 }: StudioEditableProps) {
   const { isEditing, openProductEditor, openCollectionEditor } = useStudio();
 
+  /** The element the caller asked for; a block container by default, as before. */
+  const Element = as ?? "div";
+
   if (!isEditing) {
-    return <>{children}</>;
+    // Nothing was handed over for the wrapper to carry: render the children
+    // alone so the customer DOM stays exactly as it was.
+    if (className === undefined) {
+      return <>{children}</>;
+    }
+    return <Element className={className}>{children}</Element>;
   }
 
   const handleClick = (e: React.MouseEvent) => {
@@ -48,7 +82,7 @@ export function StudioEditable({
   };
 
   return (
-    <Component
+    <Element
       onClick={handleClick}
       className={cn(
         "studio-editable-zone relative group/editable transition-all duration-150 cursor-pointer",
@@ -80,6 +114,6 @@ export function StudioEditable({
         <Edit3 className="w-2.5 h-2.5 text-accent" />
         <span>{label || "Edit"}</span>
       </button>
-    </Component>
+    </Element>
   );
 }

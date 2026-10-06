@@ -26,6 +26,24 @@ import { cn } from "@/lib/utils";
  * and injecting an extra element around, say, a heading or an anchor would change
  * that spacing. Returning the children untouched is what makes "obvious to the
  * admin, invisible to the customer" true structurally rather than just visually.
+ *
+ * ## The one exception: a `className` the caller handed over
+ *
+ * "No wrapper" is only safe when the wrapper would have carried *nothing*. Most
+ * call sites do not wrap this component in a styled element of their own — they
+ * hand it the styles and expect it to be the element:
+ *
+ *     <StudioContent className="eyebrow text-accent tracking-[0.2em]">
+ *
+ * Dropping the wrapper there dropped the typography with it, for every customer:
+ * every section eyebrow lost its uppercase, letter-spacing and accent colour, and
+ * the hero's accent half-headline lost `italic text-accent block sm:inline` — so
+ * the storefront's display type collapsed into unstyled body text while the admin
+ * saw it correctly, because the admin is the only one who gets the wrapper.
+ *
+ * So the rule is now explicit: a supplied `className` is the page's styling, not
+ * an affordance, and it is rendered in both modes. A call site that supplies
+ * neither `as` nor `className` is a pure affordance and still vanishes completely.
  */
 export interface StudioContentTarget {
   /**
@@ -51,16 +69,19 @@ interface StudioContentProps {
   children: React.ReactNode;
 }
 
-export function StudioContent({
-  target,
-  as: Component = "span",
-  className,
-  children,
-}: StudioContentProps) {
+export function StudioContent({ target, as, className, children }: StudioContentProps) {
   const { isEditing, openContentEditor } = useStudio();
 
+  /** The element the caller asked for; inline by default, as before. */
+  const Element = as ?? "span";
+
   if (!isEditing) {
-    return <>{children}</>;
+    // No styling was handed over, so there is nothing the wrapper could be
+    // holding up: render the children alone and leave the customer DOM as it was.
+    if (className === undefined) {
+      return <>{children}</>;
+    }
+    return <Element className={className}>{children}</Element>;
   }
 
   const handleClick = (event: React.MouseEvent) => {
@@ -76,7 +97,7 @@ export function StudioContent({
   };
 
   return (
-    <Component
+    <Element
       onClick={handleClick}
       className={cn(
         "relative group/studio-content transition-all duration-150",
@@ -109,6 +130,6 @@ export function StudioContent({
         <Edit3 className="w-2.5 h-2.5 text-accent" />
         <span>{target.label}</span>
       </button>
-    </Component>
+    </Element>
   );
 }
